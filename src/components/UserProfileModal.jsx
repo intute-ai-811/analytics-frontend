@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import axios from "axios";
 
 export default function UserProfileModal({ user, onClose, onSave }) {
   const [password, setPassword] = useState("");
@@ -24,27 +23,12 @@ export default function UserProfileModal({ user, onClose, onSave }) {
     setLoading(true);
 
     try {
-      console.log("Sending password update request for email:", user.email); // Debug log
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/auth/update-password`,
-        {
-          email: user.email,
-          newPassword: password,
-        },
-        {
-          headers: { Authorization: `Bearer ${user.token}` },
-        }
-      );
-
-      console.log("Password update response:", response.data); // Debug log
-      setError("Password updated successfully");
-      onSave(password); // Notify parent (e.g., to update token if needed)
-      setTimeout(onClose, 1000); // Close after a brief success message
+      console.log("Password update submitted (mock; backend endpoint needed):", user.email);
+      setError("Password updated successfully (mock)");
+      onSave(password);
+      setTimeout(onClose, 1000);
     } catch (err) {
-      console.log("Password update error:", err.response?.data || err.message); // Debug log
-      setError(
-        err.response?.data?.error || "Failed to update password. Please try again."
-      );
+      setError("Failed to update password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -55,7 +39,7 @@ export default function UserProfileModal({ user, onClose, onSave }) {
       <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative animate-fadeIn">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">Update Password</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Email: {user.email} {/* Display user context */}
+          Email: {user.email}
         </p>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>

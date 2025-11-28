@@ -1,125 +1,219 @@
+// src/App.jsx
 import React, { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
-import { Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+  Navigate,
+} from "react-router-dom";
+import axios from "axios";
+
+// Layout & Auth
 import LoginModal from "./components/LoginModal";
 import Header from "./components/Header";
-import Dashboard from "./components/Dashboard";
-import VehicleAnalytics from "./components/VehicleAnalytics";
-import ExcavatorParameters from "./components/ExcavatorParameters";
-import LoaderParameters from "./components/LoaderParameters";
-import axios from "axios";
+import FooterFixed from "./components/FooterFixed";
+
+// Dashboards
+import AdminDashboard from "./components/AdminDashboard";
+import CustomerDashboard from "./components/CustomerDashboard";
+import AdminSplash from "./components/AdminSplash";
+
+// Other Components
+import VehicleDetails from "./components/VehicleDetails";
+
+// Masters
+import CustomerMaster from "./components/masters/CustomerMaster";
+import VehicleTypeMaster from "./components/masters/VehicleTypeMaster";
+import VcuHmiMaster from "./components/masters/VcuHmiMaster";
+import VehicleMaster from "./components/masters/VehicleMaster";
 
 function App() {
   const [showLogin, setShowLogin] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem("user");
+    try {
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch (err) {
+      console.error("Error parsing user from localStorage:", err.message);
+      return null;
+    }
+  });
+
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    console.log("Initial user from localStorage:", storedUser); // Debug log
-    if (storedUser && !user) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
+    if (user) {
       setShowLogin(false);
-      if (window.location.pathname === "/") {
-        navigate("/dashboard");
-        console.log("Navigating to /dashboard with user:", parsedUser); // Debug log
+      axios.defaults.headers.common["Authorization"] = `Bearer ${user.token}`;
+
+      const isLoginPage =
+        location.pathname === "/" || location.pathname === "/login";
+
+      if (isLoginPage) {
+        // ✅ Send admins to splash instead of directly to /admin
+        const redirectTo = user.role === "admin" ? "/admin/splash" : "/dashboard";
+        navigate(redirectTo, { replace: true });
       }
-    } else if (!storedUser) {
+    } else {
       setShowLogin(true);
-      console.log("No user found, showing login"); // Debug log
+      delete axios.defaults.headers.common["Authorization"];
+      if (location.pathname !== "/") {
+        navigate("/", { replace: true });
+      }
     }
-  }, [navigate, user]); // Added user to dependency array to prevent infinite loop
+  }, [user, location.pathname, navigate]);
 
   const handleLogin = (role, name, token, email) => {
     const newUser = { role, name, token, email };
     setUser(newUser);
     localStorage.setItem("user", JSON.stringify(newUser));
-    console.log("Logged in:", { role, name, token, email }); // Debug log
     setShowLogin(false);
-    navigate("/dashboard");
+
+    // ✅ After login, admins go to splash first
+    const redirectTo = role === "admin" ? "/admin/splash" : "/dashboard";
+    navigate(redirectTo, { replace: true });
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem("user");
+    delete axios.defaults.headers.common["Authorization"];
     setShowLogin(true);
-    navigate("/");
-    console.log("Logged out, navigating to /"); // Debug log
+    navigate("/", { replace: true });
   };
 
-  useEffect(() => {
-    console.log("User state updated:", user); // Debug log
-    if (user?.token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${user.token}`;
-    } else {
-      delete axios.defaults.headers.common["Authorization"];
+  // Protected Layout with Role Check
+  const ProtectedLayout = ({ children, requiredRole }) => {
+    if (!user) return <Navigate to="/" replace />;
+
+    if (requiredRole && user.role !== requiredRole) {
+      return (
+        <Navigate
+          to={user.role === "admin" ? "/admin" : "/dashboard"}
+          replace
+        />
+      );
     }
-  }, [user?.token]);
+
+    return (
+      <div className="min-h-screen flex flex-col bg-[#0b0f17]">
+        <Header user={user} onLogout={handleLogout} />
+        <main className="flex-grow">{children}</main>
+        <FooterFixed />
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen">
       <Routes>
+        {/* Root / Login */}
         <Route
           path="/"
           element={
             showLogin || !user ? (
               <LoginModal setShowLogin={setShowLogin} onSubmit={handleLogin} />
             ) : (
-              <Navigate to="/dashboard" replace />
+              <Navigate
+                to={user.role === "admin" ? "/admin/splash" : "/dashboard"}
+                replace
+              />
             )
           }
         />
+
+        {/* Admin Splash — full screen, no header/footer */}
+        <Route
+          path="/admin/splash"
+          element={
+            user && user.role === "admin" ? (
+              <AdminSplash />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        {/* Admin Dashboard */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedLayout requiredRole="admin">
+              <AdminDashboard />
+            </ProtectedLayout>
+          }
+        />
+
+        {/* Customer Dashboard */}
         <Route
           path="/dashboard"
           element={
-            user ? (
-              <>
-                <Header user={user} onLogout={handleLogout} />
-                <Dashboard user={user} />
-              </>
-            ) : (
-              <LoginModal setShowLogin={setShowLogin} onSubmit={handleLogin} />
-            )
+            <ProtectedLayout requiredRole="customer">
+              <CustomerDashboard />
+            </ProtectedLayout>
           }
         />
+
+        {/* Vehicle Details (both roles) */}
         <Route
-          path="/vehicle-analytics"
+          path="/vehicle/:id"
           element={
-            user ? (
-              <>
-                <Header user={user} onLogout={handleLogout} />
-                <VehicleAnalytics user={user} />
-              </>
-            ) : (
-              <LoginModal setShowLogin={setShowLogin} onSubmit={handleLogin} />
-            )
+            <ProtectedLayout>
+              <VehicleDetails />
+            </ProtectedLayout>
           }
         />
+
+        {/* Masters — Admin Only */}
         <Route
-          path="/excavator-parameters"
+          path="/masters/customers"
           element={
-            user ? (
-              <>
-                <Header user={user} onLogout={handleLogout} />
-                <ExcavatorParameters user={user} />
-              </>
-            ) : (
-              <LoginModal setShowLogin={setShowLogin} onSubmit={handleLogin} />
-            )
+            <ProtectedLayout requiredRole="admin">
+              <CustomerMaster />
+            </ProtectedLayout>
           }
         />
+
         <Route
-          path="/loader-parameters"
+          path="/masters/vehicle-types"
           element={
-            user ? (
-              <>
-                <Header user={user} onLogout={handleLogout} />
-                <LoaderParameters user={user} />
-              </>
-            ) : (
-              <LoginModal setShowLogin={setShowLogin} onSubmit={handleLogin} />
-            )
+            <ProtectedLayout requiredRole="admin">
+              <VehicleTypeMaster />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/masters/vcu-hmi"
+          element={
+            <ProtectedLayout requiredRole="admin">
+              <VcuHmiMaster />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/masters/vehicles"
+          element={
+            <ProtectedLayout requiredRole="admin">
+              <VehicleMaster />
+            </ProtectedLayout>
+          }
+        />
+
+        {/* Catch-all */}
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={
+                user ? (user.role === "admin" ? "/admin" : "/dashboard") : "/"
+              }
+              replace
+            />
           }
         />
       </Routes>

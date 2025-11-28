@@ -52,7 +52,7 @@ const categoryToTableName = {
   'Machine Identification': 'machine_identification',
 };
 
-const cache = new Map();
+const cache = new Map(); 
 
 function ExcavatorParameters({ user }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -302,4 +302,4 @@ function ExcavatorParameters({ user }) {
   );
 }
 
-export default ExcavatorParameters;
+export default ExcavatorParameters; 

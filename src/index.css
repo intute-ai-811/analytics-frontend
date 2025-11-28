@@ -28,3 +28,18 @@ input[type="password"]::-ms-reveal {
 .animate-slide-up {
   animation: slide-up 0.5s ease-out;
 }
+/* Global Layout & Background Fixes */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #0b0f17; /* matches your dark gradient */
+  color: #fff;
+}
+
+/* Prevent content hiding behind fixed footer */
+.main-content {
+  padding-bottom: 80px; /* adjust based on footer height */
+}

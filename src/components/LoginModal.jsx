@@ -1,120 +1,272 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { Eye, EyeOff } from 'lucide-react';
-import intuteLogo from '../assets/intuteAILogo.png';
+// src/components/LoginModal.jsx
+import React, { useState } from "react";
+import { Eye, EyeOff, Lock, User, LogIn, AlertCircle } from "lucide-react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+// import veloConnectLogo from "../assets/VeloConnectwb.png";
+import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function LoginModal({ setShowLogin, onSubmit }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+/**
+ * @typedef {Object} LoginModalProps
+ * @property {() => void} [onClose] - Optional close handler
+ * @property {(payload: { token: string, user: any }) => void} [onAuth] - Optional callback to push auth state up
+ */
+
+/** @param {LoginModalProps} props */
+export default function LoginModal({ onClose, onAuth }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const navigate = useNavigate();
+
   const handleLogin = async () => {
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     if (!email || !password) {
-      setError('Both fields are required.');
-      return;
-    }
-
-    if (!emailPattern.test(email)) {
-      setError('Please enter a valid email address.');
+      setError("Both email and password are required.");
       return;
     }
 
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      console.log('Sending login request with:', { email, password }); // Debug log
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
-        email,
-        password,
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/auth/login`,
+        { email, password },
+        { headers: { "Content-Type": "application/json" } }
+      );
+
+      const { token, user } = data;
+
+      // SAVE JWT TOKEN (CRITICAL FOR LIVE DATA)
+      localStorage.setItem("token", token);
+
+      // Save user info + token
+      const authPayload = {
+        token,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      };
+      localStorage.setItem("user", JSON.stringify(authPayload));
+
+      // SAVE PASSWORD FOR MASTER DB ACCESS (as you already do)
+      localStorage.setItem("loginPassword", password);
+
+      // Notify parent component
+      if (typeof onAuth === "function") {
+        try {
+          onAuth({ token, user });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Fire global event
+      try {
+        window.dispatchEvent(
+          new CustomEvent("auth:login", { detail: { token, user } })
+        );
+      } catch (e) {
+        console.error(e);
+      }
+
+      // Navigate based on role
+      // inside LoginModal handleLogin, after successful login:
+      const isAdmin = user.role === "admin";
+      const target = isAdmin ? "/admin/splash" : "/dashboard";
+
+      navigate(target, {
+        replace: true,
+        state: { fromLogin: true, ts: Date.now() },
       });
 
-      console.log('Login response:', response.data); // Debug log
-      const { role, name, token } = response.data;
-      onSubmit(role, name, token, email);
-      setShowLogin(false);
+      // (Optional) you can remove the fallback entirely,
+      // but if you keep it, point to the same target:
+      setTimeout(() => {
+        if (window.location.pathname !== target) {
+          window.location.replace(target);
+        }
+      }, 50);
+
+      onClose?.();
     } catch (err) {
-      console.log('Login error details:', err.response?.data || err.message); // Debug log
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      const message =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "Invalid credentials. Please try again.";
+      setError(message);
+      console.error("Login failed:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !loading) {
-      handleLogin();
-    }
+    if (e.key === "Enter" && !loading) handleLogin();
   };
 
   const handleReset = () => {
-    setEmail('');
-    setPassword('');
-    setError('');
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    localStorage.removeItem("loginPassword");
+    setEmail("");
+    setPassword("");
+    setError("");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100">
-      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
-        <div className="flex justify-center mb-8">
-          <img src={intuteLogo} alt="Intute AI Logo" className="h-24" />
-        </div>
-        {error && (
-          <div className="text-red-500 text-base text-center mb-6 font-medium bg-red-50 p-4 rounded-lg border border-red-100">
-            {error}
-          </div>
-        )}
-        <input
-          type="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={handleKeyPress}
-          className="w-full mb-6 px-5 py-3 bg-white border border-gray-200 rounded-lg focus:border-gray-400 focus:ring-2 focus:ring-gray-200 text-gray-900 placeholder-gray-400 transition-all duration-200 shadow-sm hover:shadow-md"
-          disabled={loading}
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black relative overflow-hidden flex items-center justify-center p-6">
+      <div className="absolute inset-0 opacity-10">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(249, 115, 22, 0.1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(249, 115, 22, 0.1) 1px, transparent 1px)
+            `,
+            backgroundSize: "50px 50px",
+            animation: "grid-move 20s linear infinite",
+          }}
         />
-        <div className="relative mb-6">
-          <input
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Enter your password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={handleKeyPress}
-            className="w-full px-5 py-3 bg-white border border-gray-200 rounded-lg focus:border-gray-400 focus:ring-2 focus:ring-gray-200 text-gray-900 placeholder-gray-400 pr-12 transition-all duration-200 shadow-sm hover:shadow-md"
-            disabled={loading}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors duration-200"
-            disabled={loading}
-          >
-            {showPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
-          </button>
-        </div>
-        <div className="flex gap-4">
-          <button
-            onClick={handleLogin}
-            className="w-full py-3 px-6 rounded-lg font-semibold text-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
-            disabled={loading}
-          >
-            {loading ? 'Signing In...' : 'Sign In'}
-          </button>
-          <button
-            onClick={handleReset}
-            className="w-full py-3 px-6 rounded-lg font-semibold text-lg text-gray-800 bg-gray-100 hover:bg-gray-200 transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
-            disabled={loading}
-          >
-            Reset
-          </button>
+      </div>
+
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full border-2 border-orange-500/20 animate-spin-slow" />
+        <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-gradient-to-tr from-orange-500/10 to-red-500/10 animate-pulse-slow" />
+      </div>
+
+      <style jsx>{`
+        @keyframes grid-move {
+          0% {
+            transform: translate(0, 0);
+          }
+          100% {
+            transform: translate(50px, 50px);
+          }
+        }
+        @keyframes spin-slow {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        @keyframes pulse-slow {
+          0%,
+          100% {
+            opacity: 0.3;
+          }
+          50% {
+            opacity: 0.6;
+          }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 15s linear infinite;
+        }
+        .animate-pulse-slow {
+          animation: pulse-slow 4s ease-in-out infinite;
+        }
+      `}</style>
+
+      <div className="relative w-full max-w-md ">
+        <div className="relative bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 rounded-3xl border-2 border-orange-500/30 shadow-2xl overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-orange-500 via-red-500 to-orange-500" />
+
+          {loading && (
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center rounded-3xl z-50">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="w-12 h-12 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
+                <span className="text-white font-medium text-lg">
+                  Authenticating...
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-12 pb-10 px-8">
+            <div className="flex flex-col items-center mb-10">
+              <img
+                src={erdeLogo}
+                alt="ERDE"
+                className="h-8 md:h-10 lg:h-12 w-auto mx-auto object-contain"
+              />
+            </div>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-xl flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400" />
+                <span className="text-red-300 text-sm">{error}</span>
+              </div>
+            )}
+
+            <div className="mb-6">
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-400" />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="w-full pl-12 pr-4 py-4 bg-black/40 border border-orange-500/30 rounded-xl focus:border-orange-400 text-white placeholder-gray-400"
+                  disabled={loading}
+                  autoComplete="username"
+                />
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="w-full pl-12 pr-14 py-4 bg-black/40 border border-orange-500/30 rounded-xl focus:border-orange-400 text-white placeholder-gray-400"
+                  disabled={loading}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-orange-400"
+                  disabled={loading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogin}
+              disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold rounded-xl hover:from-orange-600 hover:to-red-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <LogIn className="w-5 h-5" />
+              {loading ? "Logging in..." : "Login"}
+            </button>
+
+            <button
+              onClick={handleReset}
+              className="w-full mt-4 py-3 text-orange-300 border border-orange-500/30 rounded-xl hover:bg-orange-500/10 transition-colors"
+              disabled={loading}
+            >
+              Clear
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-export default LoginModal;
