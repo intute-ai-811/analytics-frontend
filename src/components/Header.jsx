@@ -1,17 +1,12 @@
 // src/components/Header.jsx
 import React, { useState } from "react";
-import { Power, Lock, Database, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Power, Database, ArrowRight, LayoutDashboard } from "lucide-react"; // ⬅️ updated imports
 import { useNavigate } from "react-router-dom";
-// import veloConnectLogo from "../assets/VeloConnectwb.png";
 import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
 
 function Header({ user, onLogout }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [showPwdModal, setShowPwdModal] = useState(false);
   const [showMastersModal, setShowMastersModal] = useState(false);
-  const [pwd, setPwd] = useState("");
-  const [pwdError, setPwdError] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
   const navigate = useNavigate();
 
   const isAdmin = user?.role === "admin";
@@ -22,28 +17,6 @@ function Header({ user, onLogout }) {
   };
 
   const toggleSidebar = () => setIsSidebarOpen((s) => !s);
-
-  const openPasswordModal = () => {
-    setIsSidebarOpen(false);
-    setPwd("");
-    setPwdError("");
-    setShowPwdModal(true);
-  };
-
-  const verifyPassword = (e) => {
-    e?.preventDefault?.();
-    const saved = localStorage.getItem("loginPassword");
-    if (!saved) {
-      setPwdError("No password saved from login.");
-      return;
-    }
-    if (pwd.trim() === saved) {
-      setShowPwdModal(false);
-      setShowMastersModal(true);
-    } else {
-      setPwdError("Incorrect password. Please try again.");
-    }
-  };
 
   const masters = [
     { key: "customers", label: "Customer Database", to: "/masters/customers" },
@@ -64,7 +37,6 @@ function Header({ user, onLogout }) {
       {/* HEADER BAR */}
       <header className="bg-gradient-to-r from-gray-900 via-gray-800 to-black text-white shadow-2xl sticky top-0 z-20 border-b-2 border-orange-500/30">
         <div className="max-w-[1200px] mx-auto flex items-center justify-between p-4 relative">
-          
           {/* Left: Menu Button (Admin Only) */}
           {isAdmin && (
             <button
@@ -78,7 +50,7 @@ function Header({ user, onLogout }) {
             </button>
           )}
 
-          {/* Center: VeloConnect Logo */}
+          {/* Center: Logo */}
           <div className="absolute left-1/2 -translate-x-1/2">
             <img src={erdeLogo} alt="VeloConnect Logo" className="h-11 mr-22 opacity-95" />
           </div>
@@ -112,7 +84,6 @@ function Header({ user, onLogout }) {
             <div className="flex items-center justify-between p-6 border-b border-orange-500/20">
               <div>
                 <h2 className="text-lg font-bold">Menu</h2>
-                <p className="text-xs text-gray-400">Admin Dashboard</p>
               </div>
               <button
                 onClick={toggleSidebar}
@@ -126,13 +97,29 @@ function Header({ user, onLogout }) {
             </div>
 
             <nav className="p-4 space-y-3">
+              {/* Edit Master Database */}
               <button
-                onClick={openPasswordModal}
+                onClick={() => setShowMastersModal(true)}
                 className="w-full flex items-center justify-between px-4 py-4 rounded-xl border border-orange-500/30 bg-gray-900/40 text-white hover:bg-orange-500/10 transition group"
               >
                 <div className="flex items-center gap-3">
                   <Database className="w-5 h-5 text-orange-400 group-hover:text-orange-300" />
                   <span className="font-medium">Edit Master Database</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-orange-400 group-hover:text-orange-300" />
+              </button>
+
+              {/* NEW: Go to Dashboard button */}
+              <button
+                onClick={() => {
+                  setIsSidebarOpen(false);       // close sidebar
+                  navigate("/admin");        // 👈 change this path if your admin dashboard route is different
+                }}
+                className="w-full flex items-center justify-between px-4 py-4 rounded-xl border border-orange-500/30 bg-gray-900/40 text-white hover:bg-orange-500/10 transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <LayoutDashboard className="w-5 h-5 text-orange-400 group-hover:text-orange-300" />
+                  <span className="font-medium">Go to Dashboard</span>
                 </div>
                 <ArrowRight className="w-4 h-4 text-orange-400 group-hover:text-orange-300" />
               </button>
@@ -143,60 +130,6 @@ function Header({ user, onLogout }) {
             <div className="fixed inset-0 bg-black/60 z-20" onClick={toggleSidebar} />
           )}
         </>
-      )}
-
-      {/* PASSWORD MODAL — ADMIN ONLY */}
-      {isAdmin && showPwdModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setShowPwdModal(false)} />
-          <div className="relative w-full max-w-md mx-4 rounded-2xl border border-orange-500/30 bg-gray-900 p-6 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <Lock className="w-5 h-5 text-orange-400" />
-              <h3 className="text-lg font-semibold text-white">Confirm Password</h3>
-            </div>
-            <form onSubmit={verifyPassword} className="space-y-4">
-              <div className="relative">
-                <input
-                  type={showPwd ? "text" : "password"}
-                  value={pwd}
-                  onChange={(e) => setPwd(e.target.value)}
-                  placeholder="Password"
-                  autoComplete="current-password"
-                  className="w-full pr-12 pl-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-md hover:bg-orange-500/10 text-orange-300"
-                >
-                  {showPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-
-              {pwdError && (
-                <div className="text-sm text-red-300 bg-red-900/20 border border-red-500/30 px-3 py-2 rounded-lg">
-                  {pwdError}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPwdModal(false)}
-                  className="px-4 py-2 rounded-lg border border-orange-500/30 text-orange-200 hover:bg-orange-500/10"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 via-red-500 to-orange-500 text-white font-medium shadow hover:shadow-lg"
-                >
-                  Continue
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       {/* MASTERS MODAL — ADMIN ONLY */}

@@ -145,8 +145,8 @@ export default function VcuHmiMaster() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white px-6 py-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="relative min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black overflow-x-hidden text-white">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-10 space-y-8">
 
         <div className="text-center">
           <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
@@ -158,12 +158,12 @@ export default function VcuHmiMaster() {
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 max-w-md">
             <div className="relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-orange-400" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-400" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search VCU/HMI..."
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500"
+                className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition"
               />
             </div>
           </div>
