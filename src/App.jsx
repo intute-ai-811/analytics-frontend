@@ -26,7 +26,8 @@ import VehicleDetails from "./components/VehicleDetails";
 // Masters
 import CustomerMaster from "./components/masters/CustomerMaster";
 import VehicleTypeMaster from "./components/masters/VehicleTypeMaster";
-import VcuHmiMaster from "./components/masters/VcuHmiMaster";
+import VCUMaster from "./components/masters/VCUMaster";
+import HMIMaster from "./components/masters/HMIMaster";
 import VehicleMaster from "./components/masters/VehicleMaster";
 
 function App() {
@@ -187,10 +188,19 @@ function App() {
         />
 
         <Route
-          path="/masters/vcu-hmi"
+          path="/masters/vcu"
           element={
             <ProtectedLayout requiredRole="admin">
-              <VcuHmiMaster />
+              <VCUMaster />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/masters/hmi"
+          element={
+            <ProtectedLayout requiredRole="admin">
+              <HMIMaster />
             </ProtectedLayout>
           }
         />

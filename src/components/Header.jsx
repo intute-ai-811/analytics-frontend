@@ -21,7 +21,8 @@ function Header({ user, onLogout }) {
   const masters = [
     { key: "customers", label: "Customer Database", to: "/masters/customers" },
     { key: "vehicle-types", label: "Vehicle Type Master Database", to: "/masters/vehicle-types" },
-    { key: "vcu-hmi", label: "VCU / HMI Master Database", to: "/masters/vcu-hmi" },
+    { key: "vcu", label: "VCU Master Database", to: "/masters/vcu" },
+    { key: "hmi", label: "HMI Master Database", to: "/masters/hmi" },
     { key: "vehicles", label: "Vehicle Master Database", to: "/masters/vehicles" },
   ];
 

@@ -62,7 +62,8 @@ export default function AdminDashboard() {
 
       const mapped = res.data.map((row) => ({
         id: row.vehicle_master_id,
-        vehicleType: `${row.vehicle_make || ""} ${row.vehicle_model || ""}`.trim() || "—",
+        vehicleType:
+          `${row.vehicle_make || ""} ${row.vehicle_model || ""}`.trim() || "—",
         vehicleNo: row.vehicle_reg_no || "—",
         customer: row.company_name || "—",
         vcuId: row.vcu_display || "—",
@@ -117,8 +118,9 @@ export default function AdminDashboard() {
 
     if (q) {
       data = data.filter((r) =>
-        [r.customer, r.vehicleType, r.vehicleNo, r.vcuId, r.hmiId]
-          .some((v) => v?.toString().toLowerCase().includes(q))
+        [r.customer, r.vehicleType, r.vehicleNo, r.vcuId, r.hmiId].some((v) =>
+          v?.toString().toLowerCase().includes(q)
+        )
       );
     }
 
@@ -160,39 +162,39 @@ export default function AdminDashboard() {
   };
 
   /** CREATE */
-  const handleCreate = async () => {
-    const vehicle_unique_id = prompt("Enter Vehicle Unique ID:");
-    if (!vehicle_unique_id) return;
+  // const handleCreate = async () => {
+  //   const vehicle_unique_id = prompt("Enter Vehicle Unique ID:");
+  //   if (!vehicle_unique_id) return;
 
-    const customer_id = prompt("Enter Customer ID:");
-    if (!customer_id) return;
+  //   const customer_id = prompt("Enter Customer ID:");
+  //   if (!customer_id) return;
 
-    const vtype_id = prompt("Enter Vehicle Type ID:");
-    if (!vtype_id) return;
+  //   const vtype_id = prompt("Enter Vehicle Type ID:");
+  //   if (!vtype_id) return;
 
-    const vcu_hmi_id = prompt("Enter VCU+HMI ID (optional):");
-    const vehicle_reg_no = prompt("Enter Vehicle Reg No (optional):");
-    const date_of_deployment = prompt("Enter Date (YYYY-MM-DD):");
+  //   const vcu_hmi_id = prompt("Enter VCU+HMI ID (optional):");
+  //   const vehicle_reg_no = prompt("Enter Vehicle Reg No (optional):");
+  //   const date_of_deployment = prompt("Enter Date (YYYY-MM-DD):");
 
-    try {
-      await axios.post(
-        `${API_BASE_URL}/vehicle-master`,
-        {
-          vehicle_unique_id,
-          customer_id: parseInt(customer_id),
-          vtype_id: parseInt(vtype_id),
-          vcu_hmi_id: vcu_hmi_id ? parseInt(vcu_hmi_id) : null,
-          vehicle_reg_no: vehicle_reg_no || null,
-          date_of_deployment: date_of_deployment || null,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      await fetchData();
-      setError("Vehicle created successfully!");
-    } catch (e) {
-      setError(e.response?.data?.error || "Failed to create vehicle");
-    }
-  };
+  //   try {
+  //     await axios.post(
+  //       `${API_BASE_URL}/vehicle-master`,
+  //       {
+  //         vehicle_unique_id,
+  //         customer_id: parseInt(customer_id),
+  //         vtype_id: parseInt(vtype_id),
+  //         vcu_hmi_id: vcu_hmi_id ? parseInt(vcu_hmi_id) : null,
+  //         vehicle_reg_no: vehicle_reg_no || null,
+  //         date_of_deployment: date_of_deployment || null,
+  //       },
+  //       { headers: { Authorization: `Bearer ${token}` } }
+  //     );
+  //     await fetchData();
+  //     setError("Vehicle created successfully!");
+  //   } catch (e) {
+  //     setError(e.response?.data?.error || "Failed to create vehicle");
+  //   }
+  // };
 
   /** UPDATE */
   const handleUpdate = async (id) => {
@@ -231,11 +233,11 @@ export default function AdminDashboard() {
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black overflow-x-hidden">
-
       {/* 🌟 Background Animation → only AFTER loading */}
       {!loading && (
         <div className="pointer-events-none fixed inset-0 overflow-hidden opacity-10">
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
             w-[120vmax] h-[120vmax] rounded-full border border-orange-500/10 
             animate-[spin_60s_linear_infinite]"
           />
@@ -249,11 +251,12 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-10">
-
         {/* Header */}
         <header className="mb-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold 
-            bg-gradient-to-r from-orange-400 via-red-400 to-orange-300 bg-clip-text text-transparent">
+          <h1
+            className="text-4xl md:text-5xl font-extrabold 
+            bg-gradient-to-r from-orange-400 via-red-400 to-orange-300 bg-clip-text text-transparent"
+          >
             Admin Dashboard
           </h1>
           <p className="mt-2 text-sm text-orange-200/80">
@@ -261,58 +264,52 @@ export default function AdminDashboard() {
           </p>
         </header>
 
-        
         {/* Controls */}
-{/* Controls */}
-<div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+        {/* Controls */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+          {/* 🔍 Bigger, Wider Search Bar */}
+          <div className="relative w-full md:w-[480px] lg:w-[560px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-300/70" />
 
-  {/* 🔍 Bigger, Wider Search Bar */}
-  <div className="relative w-full md:w-[480px] lg:w-[560px]">
-    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-300/70" />
-
-    <input
-      value={query}
-      onChange={(e) => setQuery(e.target.value)}
-      placeholder="Search by Customer, Vehicle Type, Reg No, VCU, HMI..."
-      className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by Customer, Vehicle Type, Reg No, VCU, HMI..."
+              className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 
       text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/40 
       shadow-lg text-base"
-    />
-  </div>
+            />
+          </div>
 
-  {/* 🔄 Refresh + ➕ Add Vehicle (old style restored) */}
-  <div className="flex items-center gap-3">
-
-    {/* Refresh Button */}
-    <button
-      onClick={onRefresh}
-      disabled={refreshing}
-      className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 via-red-500 to-orange-500 
+          {/* 🔄 Refresh + ➕ Add Vehicle (old style restored) */}
+          <div className="flex items-center gap-3">
+            {/* Refresh Button */}
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 via-red-500 to-orange-500 
       text-white font-semibold border border-orange-500/40 shadow-xl hover:shadow-2xl hover:scale-[1.03] 
       transition-all disabled:opacity-50"
-    >
-      {refreshing ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <RefreshCcw className="w-4 h-4" />
-      )}
-      Refresh
-    </button>
+            >
+              {refreshing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCcw className="w-4 h-4" />
+              )}
+              Refresh
+            </button>
 
-    {/* Add Vehicle */}
-    <button
-      onClick={handleCreate}
-      className="flex items-center gap-2 px-5 py-3 rounded-xl bg-green-600 text-white font-semibold 
+            {/* Add Vehicle */}
+            {/* <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-green-600 text-white font-semibold 
       border border-green-700 shadow-xl hover:shadow-2xl hover:scale-[1.03] transition-all"
-    >
-      <Plus className="w-4 h-4" />
-      Add Vehicle
-    </button>
-
-  </div>
-</div>
-
-
+            >
+              <Plus className="w-4 h-4" />
+              Add Vehicle
+            </button> */}
+          </div>
+        </div>
 
         {/* Error */}
         {error && (
@@ -327,38 +324,38 @@ export default function AdminDashboard() {
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-black/40 backdrop-blur">
-  <tr className="text-left">
-    {columns.map((c) => (
-      <th
-        key={c.key}
-        className={`px-5 py-4 text-sm font-semibold uppercase tracking-wider text-orange-200/90 ${c.width} relative`}
-      >
-        <button
-          className={`w-full flex items-center justify-center ${
-            c.sortable ? "hover:text-white transition" : "cursor-default"
-          }`}
-          onClick={() => onSort(c.key, c.sortable)}
-        >
-          {/* Column Title */}
-          <span>{c.label}</span>
+                <tr className="text-left">
+                  {columns.map((c) => (
+                    <th
+                      key={c.key}
+                      className={`px-5 py-4 text-sm font-semibold uppercase tracking-wider text-orange-200/90 ${c.width} relative`}
+                    >
+                      <button
+                        className={`w-full flex items-center justify-center ${
+                          c.sortable
+                            ? "hover:text-white transition"
+                            : "cursor-default"
+                        }`}
+                        onClick={() => onSort(c.key, c.sortable)}
+                      >
+                        {/* Column Title */}
+                        <span>{c.label}</span>
 
-          {/* Sort Icon — positioned at center-right */}
-          {c.sortable && (
-            <ArrowUpDown
-              className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
-                sort.key === c.key ? "opacity-100" : "opacity-40"
-              }`}
-            />
-          )}
-        </button>
-      </th>
-    ))}
-  </tr>
-</thead>
-
+                        {/* Sort Icon — positioned at center-right */}
+                        {c.sortable && (
+                          <ArrowUpDown
+                            className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                              sort.key === c.key ? "opacity-100" : "opacity-40"
+                            }`}
+                          />
+                        )}
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
               <tbody className="divide-y divide-orange-500/10">
-
                 {/* 🔥 SUPER FAST LOADING ROW */}
                 {loading && (
                   <tr>
@@ -375,7 +372,10 @@ export default function AdminDashboard() {
                 {/* Empty */}
                 {!loading && paged.length === 0 && (
                   <tr>
-                    <td colSpan={columns.length} className="py-10 text-center text-orange-200/80">
+                    <td
+                      colSpan={columns.length}
+                      className="py-10 text-center text-orange-200/80"
+                    >
                       No vehicles found.
                     </td>
                   </tr>
@@ -405,11 +405,20 @@ export default function AdminDashboard() {
                       <td className="px-5 py-4">{row.avgKwh}</td>
 
                       <td className="px-5 py-4">
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => handleUpdate(row.id)} className="text-blue-400 hover:text-blue-300">
+                        <div
+                          className="flex gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => handleUpdate(row.id)}
+                            className="text-blue-400 hover:text-blue-300"
+                          >
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDelete(row.id)} className="text-red-400 hover:text-red-300">
+                          <button
+                            onClick={() => handleDelete(row.id)}
+                            className="text-red-400 hover:text-red-300"
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -454,8 +463,12 @@ export default function AdminDashboard() {
       {/* Animations */}
       <style jsx>{`
         @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
         }
         .animate-[spin_60s_linear_infinite] {
           animation: spin 60s linear infinite;
