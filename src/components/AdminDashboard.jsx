@@ -212,7 +212,7 @@ export default function AdminDashboard() {
     if (!window.confirm("Delete permanently?")) return;
 
     try {
-      await axios.delete(`${API_BASE_URL}/api/vehicle-master/${id}`, {
+      await axios.delete(`${API_BASE_URL}/vehicle-master/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       await fetchData();
