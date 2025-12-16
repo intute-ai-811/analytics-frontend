@@ -9,7 +9,13 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
-const API_BASE = "http://localhost:5000/api/vehicles-master";
+// API Base URLs
+const API_BASE = "http://localhost:5000/api";
+const VEHICLE_API = `${API_BASE}/vehicle-master`;
+const CUSTOMERS_API = `${API_BASE}/customers`;
+const VTYPES_API = `${API_BASE}/vehicle-types`;
+const VCU_API = `${API_BASE}/vcu`;
+const HMI_API = `${API_BASE}/hmi`;
 
 // Get Auth Headers
 const getAuthHeaders = () => {
@@ -22,6 +28,15 @@ export default function VehicleMaster() {
   const [query, setQuery] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Dropdown data
+  const [customers, setCustomers] = useState([]);
+  const [vehicleTypes, setVehicleTypes] = useState([]);
+  const [vcus, setVcus] = useState([]);
+  const [hmis, setHmis] = useState([]);
+
   const [form, setForm] = useState({
     vehicle_unique_id: "",
     vehicle_reg_no: "",
@@ -29,7 +44,6 @@ export default function VehicleMaster() {
     vtype_id: "",
     vcu_id: "",
     hmi_id: "",
-    vehicle_type: "Wheel Loader",
     vcu_make_model: "",
     hmi_make_model: "",
     motor_make_model: "",
@@ -45,17 +59,34 @@ export default function VehicleMaster() {
     motor_cooling_details: "",
     date_of_deployment: new Date().toISOString().split("T")[0],
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(""); 
 
-  // Fetch Vehicle Data
+  // Fetch dropdown data
+  const fetchDropdowns = async () => {
+    try {
+      const [custRes, vtypeRes, vcuRes, hmiRes] = await Promise.all([
+        axios.get(CUSTOMERS_API, { headers: getAuthHeaders() }),
+        axios.get(VTYPES_API, { headers: getAuthHeaders() }),
+        axios.get(VCU_API, { headers: getAuthHeaders() }),
+        axios.get(HMI_API, { headers: getAuthHeaders() }),
+      ]);
+      setCustomers(custRes.data || []);
+      setVehicleTypes(vtypeRes.data || []);
+      setVcus(vcuRes.data || []);
+      setHmis(hmiRes.data || []);
+    } catch (err) {
+      console.error("Failed to load dropdowns", err);
+      setError("Failed to load reference data");
+    }
+  };
+
+  // Fetch vehicles
   const fetchVehicles = async () => {
     setLoading(true);
     try {
-      const { data } = await axios.get(API_BASE, { headers: getAuthHeaders() });
-      setRows(data);
+      const { data } = await axios.get(VEHICLE_API, { headers: getAuthHeaders() });
+      setRows(data || []);
     } catch (e) {
-      setError(e.response?.data?.error || "Failed to load");
+      setError(e.response?.data?.error || "Failed to load vehicles");
     } finally {
       setLoading(false);
     }
@@ -63,9 +94,10 @@ export default function VehicleMaster() {
 
   useEffect(() => {
     fetchVehicles();
+    fetchDropdowns();
   }, []);
 
-  // Filter Vehicles based on search query
+  // Search filter
   const filtered = useMemo(() => {
     if (!query) return rows;
     const q = query.toLowerCase();
@@ -74,20 +106,18 @@ export default function VehicleMaster() {
     );
   }, [rows, query]);
 
-  // Open the modal for creating a new vehicle
+  // Open new vehicle modal
   const openNew = () => {
     setEditing(null);
+    const year = new Date().getFullYear().toString().slice(2);
+    const nextNum = String(rows.length + 1).padStart(4, "0");
     setForm({
-      vehicle_unique_id: `VEH-${new Date()
-        .getFullYear()
-        .toString()
-        .slice(2)}-${String(rows.length + 1).padStart(4, "0")}`,
+      vehicle_unique_id: `VEH-${year}-${nextNum}`,
       vehicle_reg_no: "",
-      customer_id: "1",
+      customer_id: "",
       vtype_id: "",
       vcu_id: "",
       hmi_id: "",
-      vehicle_type: "Wheel Loader",
       vcu_make_model: "",
       hmi_make_model: "",
       motor_make_model: "",
@@ -106,7 +136,7 @@ export default function VehicleMaster() {
     setShowModal(true);
   };
 
-  // Open the modal for editing an existing vehicle
+  // Open edit modal
   const openEdit = (r) => {
     setEditing(r);
     setForm({
@@ -114,9 +144,8 @@ export default function VehicleMaster() {
       vehicle_reg_no: r.vehicle_reg_no || "",
       customer_id: r.customer_id?.toString() || "",
       vtype_id: r.vtype_id?.toString() || "",
-      vcu_id: r.vcu_id || "",
-      hmi_id: r.hmi_id || "",
-      vehicle_type: r.vehicle_type || "Wheel Loader",
+      vcu_id: r.vcu_id?.toString() || "",
+      hmi_id: r.hmi_id?.toString() || "",
       vcu_make_model: r.vcu_make_model || "",
       hmi_make_model: r.hmi_make_model || "",
       motor_make_model: r.motor_make_model || "",
@@ -135,10 +164,36 @@ export default function VehicleMaster() {
     setShowModal(true);
   };
 
-  // Save Vehicle form data
+  // Auto-fill VCU make+model
+  useEffect(() => {
+    if (!editing && form.vcu_id) {
+      const vcu = vcus.find((v) => v.vcu_id === parseInt(form.vcu_id));
+      if (vcu) {
+        setForm((prev) => ({
+          ...prev,
+          vcu_make_model: `${vcu.vcu_make || ""} ${vcu.vcu_model || ""}`.trim() || "",
+        }));
+      }
+    }
+  }, [form.vcu_id, vcus, editing]);
+
+  // Auto-fill HMI make+model
+  useEffect(() => {
+    if (!editing && form.hmi_id) {
+      const hmi = hmis.find((h) => h.hmi_id === parseInt(form.hmi_id));
+      if (hmi) {
+        setForm((prev) => ({
+          ...prev,
+          hmi_make_model: `${hmi.hmi_make || ""} ${hmi.hmi_model || ""}`.trim() || "",
+        }));
+      }
+    }
+  }, [form.hmi_id, hmis, editing]);
+
+  // Save form
   const saveForm = async () => {
     if (!form.vehicle_reg_no || !form.customer_id || !form.vtype_id) {
-      alert("Reg No., Customer, and Type are required!");
+      alert("Registration No., Customer, and Vehicle Type are required!");
       return;
     }
 
@@ -146,10 +201,9 @@ export default function VehicleMaster() {
       vehicle_unique_id: form.vehicle_unique_id,
       customer_id: parseInt(form.customer_id),
       vtype_id: parseInt(form.vtype_id),
-      vcu_id: form.vcu_id || null,
-      hmi_id: form.hmi_id || null,
+      vcu_id: form.vcu_id ? parseInt(form.vcu_id) : null,
+      hmi_id: form.hmi_id ? parseInt(form.hmi_id) : null,
       vehicle_reg_no: form.vehicle_reg_no || null,
-      vehicle_type: form.vehicle_type || null,
       vcu_make_model: form.vcu_make_model || null,
       hmi_make_model: form.hmi_make_model || null,
       motor_make_model: form.motor_make_model || null,
@@ -168,9 +222,9 @@ export default function VehicleMaster() {
 
     try {
       if (!editing) {
-        await axios.post(API_BASE, payload, { headers: getAuthHeaders() });
+        await axios.post(VEHICLE_API, payload, { headers: getAuthHeaders() });
       } else {
-        await axios.put(`${API_BASE}/${editing.vehicle_master_id}`, payload, {
+        await axios.put(`${VEHICLE_API}/${editing.vehicle_master_id}`, payload, {
           headers: getAuthHeaders(),
         });
       }
@@ -181,67 +235,48 @@ export default function VehicleMaster() {
     }
   };
 
-  // Remove a vehicle row
+  // Delete
   const removeRow = async (id) => {
-    if (!confirm("Delete vehicle?")) return;
+    if (!confirm("Delete this vehicle permanently?")) return;
     try {
-      await axios.delete(`${API_BASE}/${id}`, { headers: getAuthHeaders() });
+      await axios.delete(`${VEHICLE_API}/${id}`, { headers: getAuthHeaders() });
       await fetchVehicles();
     } catch (e) {
-      alert(e.response?.data?.error);
+      alert(e.response?.data?.error || "Delete failed");
     }
   };
 
-  // Export data as CSV
+  // Export CSV
   const exportCSV = () => {
     const headers = [
-      "Vehicle Unique ID",
-      "Reg No./Vehicle Identification No.",
-      "Customer",
-      "Type",
-      "VCU ID",
-      "HMI ID",
-      "VCU Make+Model",
-      "HMI Make+Model",
-      "Motor",
-      "Controller",
-      "Battery",
-      "DC/DC",
-      "BTMS",
-      "Hydraulic Cooling",
-      "Compressor",
-      "Motor Cooling",
-      "Cooler Details",
-      "Deployment Date",
+      "Unique ID","Reg No.","Customer","Vehicle Type","VCU ID","HMI ID",
+      "VCU Make+Model","HMI Make+Model","Motor","Controller","Battery",
+      "DC/DC","BTMS","Hydraulic Cooling","Compressor","Motor Cooling",
+      "Details","Deployment Date"
     ];
+
     const csv = [
       headers.join(","),
-      ...rows.map((r) =>
-        [
-          r.vehicle_unique_id,
-          r.vehicle_reg_no || "",
-          r.company_name || "",
-          `${r.make} ${r.model}`,
-          r.vcu_id || "",
-          r.hmi_id || "",
-          r.vcu_make_model || "",
-          r.hmi_make_model || "",
-          r.motor_make_model || "",
-          r.controller_make_model || "",
-          r.battery_make_model || "",
-          r.dc_dc_make_model || "",
-          r.btms_make_model || "",
-          r.hyd_cooling_yesno ? "Yes" : "No",
-          r.compressor_yesno ? "Yes" : "No",
-          r.motor_cooling_yesno ? "Yes" : "No",
-          r.motor_controller_details || "",
-          r.compressor_details || "",
-          r.motor_cooling_details || "",
-          r.date_of_deployment || "",
-        ]
-          .map((v) => `"${v}"`)
-          .join(",")
-      ),
+      ...rows.map((r) => [
+        r.vehicle_unique_id || "",
+        r.vehicle_reg_no || "",
+        r.company_name || "",
+        `${r.vehicle_make || ""} ${r.vehicle_model || ""}`.trim(),
+        r.vcu_id || "",
+        r.hmi_id || "",
+        r.vcu_make_model || "",
+        r.hmi_make_model || "",
+        r.motor_make_model || "",
+        r.controller_make_model || "",
+        r.battery_make_model || "",
+        r.dc_dc_make_model || "",
+        r.btms_make_model || "",
+        r.hyd_cooling_yesno ? "Yes" : "No",
+        r.compressor_yesno ? "Yes" : "No",
+        r.motor_cooling_yesno ? "Yes" : "No",
+        [r.motor_controller_details, r.compressor_details, r.motor_cooling_details].filter(Boolean).join(" | ") || "",
+        r.date_of_deployment || "",
+      ].map(v => `"${v}"`).join(","))
     ].join("\n");
 
     const blob = new Blob([csv], { type: "text/csv" });
@@ -275,16 +310,10 @@ export default function VehicleMaster() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={exportCSV}
-              className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 hover:bg-gray-700 flex items-center gap-2"
-            >
+            <button onClick={exportCSV} className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 hover:bg-gray-700 flex items-center gap-2">
               <Download className="w-4 h-4" /> Export All
             </button>
-            <button
-              onClick={openNew}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex items-center gap-2"
-            >
+            <button onClick={openNew} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex items-center gap-2">
               <Plus className="w-5 h-5" /> Add Vehicle
             </button>
           </div>
@@ -293,8 +322,7 @@ export default function VehicleMaster() {
         {loading && <div className="text-center py-8">Loading fleet...</div>}
         {error && (
           <div className="p-4 bg-red-900/50 border border-red-500 rounded-xl flex items-center gap-3">
-            <AlertCircle className="w-5 h-5" />
-            {error}
+            <AlertCircle className="w-5 h-5" /> {error}
           </div>
         )}
 
@@ -302,49 +330,21 @@ export default function VehicleMaster() {
           <table className="w-full min-w-[2000px] text-sm">
             <thead className="bg-black/50">
               <tr>
-                {[
-                  "Unique ID",
-                  "Reg No./Vehicle Identification No.",
-                  "Customer",
-                  "Type",
-                  "VCU ID",
-                  "HMI ID",
-                  "VCU Make+Model",
-                  "HMI Make+Model",
-                  "Motor",
-                  "Controller",
-                  "Battery",
-                  "DC/DC",
-                  "BTMS",
-                  "Hydraulic Cooling",
-                  "Compressor",
-                  "Motor Cooling",
-                  "Cooler Details",
-                  "Deployment",
-                  "Actions",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-orange-200 font-semibold"
-                  >
-                    {h}
-                  </th>
+                {["Unique ID","Reg No.","Customer","Vehicle Type","VCU ID","HMI ID","VCU Make+Model","HMI Make+Model","Motor","Controller","Battery","DC/DC","BTMS","Hydraulic Cooling","Compressor","Motor Cooling","Details","Deployment","Actions"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-orange-200 font-semibold">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr
-                  key={r.vehicle_master_id}
-                  className="border-t border-orange-500/10 hover:bg-orange-500/5"
-                >
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {r.vehicle_unique_id}
-                  </td>
+                <tr key={r.vehicle_master_id} className="border-t border-orange-500/10 hover:bg-orange-500/5">
+                  <td className="px-4 py-3 font-mono text-xs">{r.vehicle_unique_id}</td>
                   <td className="px-4 py-3 font-bold">{r.vehicle_reg_no}</td>
                   <td className="px-4 py-3">{r.company_name}</td>
                   <td className="px-4 py-3">
-                    {r.make} {r.model}
+                    <span className="px-2 py-1 rounded bg-orange-500/20 text-orange-300 text-xs font-medium">
+                      {r.vehicle_make} {r.vehicle_model}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-xs">{r.vcu_id || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.hmi_id || "-"}</td>
@@ -358,37 +358,26 @@ export default function VehicleMaster() {
                   <td className="px-4 py-3">{r.hyd_cooling_yesno ? "Yes" : "No"}</td>
                   <td className="px-4 py-3">{r.compressor_yesno ? "Yes" : "No"}</td>
                   <td className="px-4 py-3">{r.motor_cooling_yesno ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3 text-xs">{r.motor_controller_details || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.compressor_details || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.motor_cooling_details || "-"}</td>
-                  <td className="px-4 py-3">{r.date_of_deployment}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {[r.motor_controller_details, r.compressor_details, r.motor_cooling_details].filter(Boolean).join(" | ") || "-"}
+                  </td>
+                  <td className="px-4 py-3">{r.date_of_deployment || "-"}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => openEdit(r)}
-                      className="p-2 hover:bg-orange-500/20 rounded"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => removeRow(r.vehicle_master_id)}
-                      className="p-2 hover:bg-red-500/20 rounded ml-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <button onClick={() => openEdit(r)} className="p-2 hover:bg-orange-500/20 rounded"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => removeRow(r.vehicle_master_id)} className="p-2 hover:bg-red-500/20 rounded ml-2"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="text-center py-16 text-orange-400">
-                    No vehicles found
-                  </td>
+                  <td colSpan={19} className="text-center py-16 text-orange-400">No vehicles found</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
 
+        {/* Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 overflow-y-auto">
             <div className="bg-gray-900 p-8 rounded-2xl border-2 border-orange-500 w-full max-w-6xl my-8">
@@ -396,125 +385,113 @@ export default function VehicleMaster() {
                 {editing ? "Edit" : "Add"} Vehicle
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                <Input label="Unique ID *" value={form.vehicle_unique_id} disabled />
+
                 <Input
-                  label="Unique ID *"
-                  value={form.vehicle_unique_id}
-                  onChange={(v) => setForm({ ...form, vehicle_unique_id: v })}
-                />
-                <Input
-                  label="Reg No./Vehicle Identification No. *"
+                  label="Reg No./VIN *"
                   value={form.vehicle_reg_no}
                   onChange={(v) => setForm({ ...form, vehicle_reg_no: v })}
                 />
-                <Input
-                  label="Customer ID *"
+
+                <Select
+                  label="Customer *"
                   value={form.customer_id}
                   onChange={(v) => setForm({ ...form, customer_id: v })}
+                  options={customers.map(c => ({ value: c.customer_id, label: c.company_name }))}
+                  placeholder="Select customer"
                 />
-                <Input
-                  label="Type ID *"
+
+                <Select
+                  label="Vehicle Type *"
                   value={form.vtype_id}
                   onChange={(v) => setForm({ ...form, vtype_id: v })}
+                  options={vehicleTypes.map(vt => ({ value: vt.vtype_id, label: `${vt.make} ${vt.model}` }))}
+                  placeholder="Select vehicle type"
                 />
-                <Input
-                  label="VCU ID"
+
+                <Select
+                  label="VCU"
                   value={form.vcu_id}
                   onChange={(v) => setForm({ ...form, vcu_id: v })}
+                  options={vcus.map(v => ({ value: v.vcu_id, label: `${v.vcu_make} ${v.vcu_model}`.trim() || `VCU ID: ${v.vcu_id}` }))}
+                  placeholder="Select VCU (optional)"
                 />
+
                 <Input
-                  label="HMI ID"
-                  value={form.hmi_id}
-                  onChange={(v) => setForm({ ...form, hmi_id: v })}
-                />
-                <Input
-                  label="VCU Make+Model"
+                  label="VCU Make+Model (Snapshot)"
                   value={form.vcu_make_model}
                   onChange={(v) => setForm({ ...form, vcu_make_model: v })}
+                  disabled={!!editing}
                 />
+
+                <Select
+                  label="HMI"
+                  value={form.hmi_id}
+                  onChange={(v) => setForm({ ...form, hmi_id: v })}
+                  options={hmis.map(h => ({ value: h.hmi_id, label: `${h.hmi_make} ${h.hmi_model}`.trim() || `HMI ID: ${h.hmi_id}` }))}
+                  placeholder="Select HMI (optional)"
+                />
+
                 <Input
-                  label="HMI Make+Model"
+                  label="HMI Make+Model (Snapshot)"
                   value={form.hmi_make_model}
                   onChange={(v) => setForm({ ...form, hmi_make_model: v })}
+                  disabled={!!editing}
                 />
-                <Input
-                  label="Motor"
-                  value={form.motor_make_model}
-                  onChange={(v) => setForm({ ...form, motor_make_model: v })}
-                />
-                <Input
-                  label="Controller"
-                  value={form.controller_make_model}
-                  onChange={(v) =>
-                    setForm({ ...form, controller_make_model: v })
-                  }
-                />
-                <Input
-                  label="Battery"
-                  value={form.battery_make_model}
-                  onChange={(v) => setForm({ ...form, battery_make_model: v })}
-                />
-                <Input
-                  label="DC/DC"
-                  value={form.dc_dc_make_model}
-                  onChange={(v) => setForm({ ...form, dc_dc_make_model: v })}
-                />
-                <Input
-                  label="BTMS"
-                  value={form.btms_make_model}
-                  onChange={(v) => setForm({ ...form, btms_make_model: v })}
-                />
-                <Select
+
+                <Input label="Motor Make+Model" value={form.motor_make_model} onChange={(v) => setForm({ ...form, motor_make_model: v })} />
+                <Input label="Controller Make+Model" value={form.controller_make_model} onChange={(v) => setForm({ ...form, controller_make_model: v })} />
+                <Input label="Battery Make+Model" value={form.battery_make_model} onChange={(v) => setForm({ ...form, battery_make_model: v })} />
+                <Input label="DC/DC Converter" value={form.dc_dc_make_model} onChange={(v) => setForm({ ...form, dc_dc_make_model: v })} />
+                <Input label="BTMS" value={form.btms_make_model} onChange={(v) => setForm({ ...form, btms_make_model: v })} />
+
+                <YesNoSelect
                   label="Hydraulic Cooling"
                   value={form.hyd_cooling_yesno}
                   onChange={(v) => setForm({ ...form, hyd_cooling_yesno: v })}
-                  options={["Yes", "No"]}
                 />
                 {form.hyd_cooling_yesno === "Yes" && (
                   <TextArea
-                    label="Cooler Details"
+                    label="Hydraulic Cooling Details"
                     value={form.motor_controller_details}
-                    onChange={(v) =>
-                      setForm({ ...form, motor_controller_details: v })
-                    }
+                    onChange={(v) => setForm({ ...form, motor_controller_details: v })}
                   />
                 )}
-                <Select
+
+                <YesNoSelect
                   label="Compressor"
                   value={form.compressor_yesno}
                   onChange={(v) => setForm({ ...form, compressor_yesno: v })}
-                  options={["Yes", "No"]}
                 />
                 {form.compressor_yesno === "Yes" && (
                   <TextArea
                     label="Compressor Details"
                     value={form.compressor_details}
-                    onChange={(v) =>
-                      setForm({ ...form, compressor_details: v })
-                    }
+                    onChange={(v) => setForm({ ...form, compressor_details: v })}
                   />
                 )}
-                <Select
+
+                <YesNoSelect
                   label="Motor Cooling"
                   value={form.motor_cooling_yesno}
                   onChange={(v) => setForm({ ...form, motor_cooling_yesno: v })}
-                  options={["Yes", "No"]}
                 />
                 {form.motor_cooling_yesno === "Yes" && (
                   <TextArea
                     label="Motor Cooling Details"
                     value={form.motor_cooling_details}
-                    onChange={(v) =>
-                      setForm({ ...form, motor_cooling_details: v })
-                    }
+                    onChange={(v) => setForm({ ...form, motor_cooling_details: v })}
                   />
                 )}
+
                 <Input
-                  label="Date of Activation"
+                  label="Date of Deployment"
                   type="date"
                   value={form.date_of_deployment}
                   onChange={(v) => setForm({ ...form, date_of_deployment: v })}
                 />
               </div>
+
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   onClick={() => setShowModal(false)}
@@ -537,14 +514,20 @@ export default function VehicleMaster() {
   );
 }
 
-function Input({ label, value = "", onChange, ...props }) {
+// Reusable Components
+function Input({ label, value = "", onChange, disabled = false, ...props }) {
   return (
     <label className="block">
       <span className="text-orange-300 text-xs">{label}</span>
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
+        onChange={(e) => onChange?.(e.target.value)}
+        disabled={disabled}
+        className={`mt-1 w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-orange-500 text-sm ${
+          disabled
+            ? "bg-gray-800/50 border-orange-500/20 text-gray-400 cursor-not-allowed"
+            : "bg-gray-800 border-orange-500/30"
+        }`}
         {...props}
       />
     </label>
@@ -558,28 +541,44 @@ function TextArea({ label, value = "", onChange }) {
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        rows={2}
-        className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
+        rows={3}
+        className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm resize-vertical"
       />
     </label>
   );
 }
 
-function Select({ label, value, onChange, options }) {
+function Select({ label, value, onChange, options = [], placeholder = "Select..." }) {
   return (
     <label className="block">
       <span className="text-orange-300 text-xs">{label}</span>
       <select
-        value={value}
+        value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
       >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
+        <option value="" disabled>{placeholder}</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
           </option>
         ))}
       </select>
     </label>
+  );
+}
+
+function YesNoSelect({ label, value, onChange }) {
+  return (
+    <Select
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={[
+        { value: "No", label: "No" },
+        { value: "Yes", label: "Yes" },
+      ]}
+      placeholder="Select..."
+    />
   );
 }
