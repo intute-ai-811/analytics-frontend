@@ -83,7 +83,9 @@ export default function VehicleMaster() {
   const fetchVehicles = async () => {
     setLoading(true);
     try {
-      const { data } = await axios.get(VEHICLE_API, { headers: getAuthHeaders() });
+      const { data } = await axios.get(VEHICLE_API, {
+        headers: getAuthHeaders(),
+      });
       setRows(data || []);
     } catch (e) {
       setError(e.response?.data?.error || "Failed to load vehicles");
@@ -112,7 +114,7 @@ export default function VehicleMaster() {
     const year = new Date().getFullYear().toString().slice(2);
     const nextNum = String(rows.length + 1).padStart(4, "0");
     setForm({
-      vehicle_unique_id: `VEH-${year}-${nextNum}`,
+      vehicle_unique_id: `ERDE-${year}-${nextNum}`,
       vehicle_reg_no: "",
       customer_id: "",
       vtype_id: "",
@@ -171,7 +173,8 @@ export default function VehicleMaster() {
       if (vcu) {
         setForm((prev) => ({
           ...prev,
-          vcu_make_model: `${vcu.vcu_make || ""} ${vcu.vcu_model || ""}`.trim() || "",
+          vcu_make_model:
+            `${vcu.vcu_make || ""} ${vcu.vcu_model || ""}`.trim() || "",
         }));
       }
     }
@@ -184,7 +187,8 @@ export default function VehicleMaster() {
       if (hmi) {
         setForm((prev) => ({
           ...prev,
-          hmi_make_model: `${hmi.hmi_make || ""} ${hmi.hmi_model || ""}`.trim() || "",
+          hmi_make_model:
+            `${hmi.hmi_make || ""} ${hmi.hmi_model || ""}`.trim() || "",
         }));
       }
     }
@@ -224,9 +228,13 @@ export default function VehicleMaster() {
       if (!editing) {
         await axios.post(VEHICLE_API, payload, { headers: getAuthHeaders() });
       } else {
-        await axios.put(`${VEHICLE_API}/${editing.vehicle_master_id}`, payload, {
-          headers: getAuthHeaders(),
-        });
+        await axios.put(
+          `${VEHICLE_API}/${editing.vehicle_master_id}`,
+          payload,
+          {
+            headers: getAuthHeaders(),
+          }
+        );
       }
       await fetchVehicles();
       setShowModal(false);
@@ -249,34 +257,58 @@ export default function VehicleMaster() {
   // Export CSV
   const exportCSV = () => {
     const headers = [
-      "Unique ID","Reg No.","Customer","Vehicle Type","VCU ID","HMI ID",
-      "VCU Make+Model","HMI Make+Model","Motor","Controller","Battery",
-      "DC/DC","BTMS","Hydraulic Cooling","Compressor","Motor Cooling",
-      "Details","Deployment Date"
+      "Unique ID",
+      "Reg No.",
+      "Customer",
+      "Vehicle Type",
+      "VCU ID",
+      "HMI ID",
+      "VCU Make+Model",
+      "HMI Make+Model",
+      "Motor",
+      "Controller",
+      "Battery",
+      "DC/DC",
+      "BTMS",
+      "Hydraulic Cooling",
+      "Compressor",
+      "Motor Cooling",
+      "Details",
+      "Deployment Date",
     ];
 
     const csv = [
       headers.join(","),
-      ...rows.map((r) => [
-        r.vehicle_unique_id || "",
-        r.vehicle_reg_no || "",
-        r.company_name || "",
-        `${r.vehicle_make || ""} ${r.vehicle_model || ""}`.trim(),
-        r.vcu_id || "",
-        r.hmi_id || "",
-        r.vcu_make_model || "",
-        r.hmi_make_model || "",
-        r.motor_make_model || "",
-        r.controller_make_model || "",
-        r.battery_make_model || "",
-        r.dc_dc_make_model || "",
-        r.btms_make_model || "",
-        r.hyd_cooling_yesno ? "Yes" : "No",
-        r.compressor_yesno ? "Yes" : "No",
-        r.motor_cooling_yesno ? "Yes" : "No",
-        [r.motor_controller_details, r.compressor_details, r.motor_cooling_details].filter(Boolean).join(" | ") || "",
-        r.date_of_deployment || "",
-      ].map(v => `"${v}"`).join(","))
+      ...rows.map((r) =>
+        [
+          r.vehicle_unique_id || "",
+          r.vehicle_reg_no || "",
+          r.company_name || "",
+          `${r.vehicle_make || ""} ${r.vehicle_model || ""}`.trim(),
+          r.vcu_id || "",
+          r.hmi_id || "",
+          r.vcu_make_model || "",
+          r.hmi_make_model || "",
+          r.motor_make_model || "",
+          r.controller_make_model || "",
+          r.battery_make_model || "",
+          r.dc_dc_make_model || "",
+          r.btms_make_model || "",
+          r.hyd_cooling_yesno ? "Yes" : "No",
+          r.compressor_yesno ? "Yes" : "No",
+          r.motor_cooling_yesno ? "Yes" : "No",
+          [
+            r.motor_controller_details,
+            r.compressor_details,
+            r.motor_cooling_details,
+          ]
+            .filter(Boolean)
+            .join(" | ") || "",
+          r.date_of_deployment || "",
+        ]
+          .map((v) => `"${v}"`)
+          .join(",")
+      ),
     ].join("\n");
 
     const blob = new Blob([csv], { type: "text/csv" });
@@ -310,10 +342,16 @@ export default function VehicleMaster() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 hover:bg-gray-700 flex items-center gap-2">
+            <button
+              onClick={exportCSV}
+              className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 hover:bg-gray-700 flex items-center gap-2"
+            >
               <Download className="w-4 h-4" /> Export All
             </button>
-            <button onClick={openNew} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex items-center gap-2">
+            <button
+              onClick={openNew}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex items-center gap-2"
+            >
               <Plus className="w-5 h-5" /> Add Vehicle
             </button>
           </div>
@@ -330,15 +368,45 @@ export default function VehicleMaster() {
           <table className="w-full min-w-[2000px] text-sm">
             <thead className="bg-black/50">
               <tr>
-                {["Unique ID","Reg No.","Customer","Vehicle Type","VCU ID","HMI ID","VCU Make+Model","HMI Make+Model","Motor","Controller","Battery","DC/DC","BTMS","Hydraulic Cooling","Compressor","Motor Cooling","Details","Deployment","Actions"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-orange-200 font-semibold">{h}</th>
+                {[
+                  "Unique ID",
+                  "Reg No.",
+                  "Customer",
+                  "Vehicle Type",
+                  "VCU ID",
+                  "HMI ID",
+                  "VCU Make+Model",
+                  "HMI Make+Model",
+                  "Motor",
+                  "Controller",
+                  "Battery",
+                  "DC/DC",
+                  "BTMS",
+                  "Hydraulic Cooling",
+                  "Compressor",
+                  "Motor Cooling",
+                  "Details",
+                  "Deployment",
+                  "Actions",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-orange-200 font-semibold"
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.vehicle_master_id} className="border-t border-orange-500/10 hover:bg-orange-500/5">
-                  <td className="px-4 py-3 font-mono text-xs">{r.vehicle_unique_id}</td>
+                <tr
+                  key={r.vehicle_master_id}
+                  className="border-t border-orange-500/10 hover:bg-orange-500/5"
+                >
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {r.vehicle_unique_id}
+                  </td>
                   <td className="px-4 py-3 font-bold">{r.vehicle_reg_no}</td>
                   <td className="px-4 py-3">{r.company_name}</td>
                   <td className="px-4 py-3">
@@ -348,29 +416,70 @@ export default function VehicleMaster() {
                   </td>
                   <td className="px-4 py-3 text-xs">{r.vcu_id || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.hmi_id || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.vcu_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.hmi_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.motor_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.controller_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.battery_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.dc_dc_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.btms_make_model || "-"}</td>
-                  <td className="px-4 py-3">{r.hyd_cooling_yesno ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3">{r.compressor_yesno ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3">{r.motor_cooling_yesno ? "Yes" : "No"}</td>
                   <td className="px-4 py-3 text-xs">
-                    {[r.motor_controller_details, r.compressor_details, r.motor_cooling_details].filter(Boolean).join(" | ") || "-"}
+                    {r.vcu_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.hmi_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.motor_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.controller_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.battery_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.dc_dc_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.btms_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.hyd_cooling_yesno ? "Yes" : "No"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.compressor_yesno ? "Yes" : "No"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.motor_cooling_yesno ? "Yes" : "No"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {[
+                      r.motor_controller_details,
+                      r.compressor_details,
+                      r.motor_cooling_details,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ") || "-"}
                   </td>
                   <td className="px-4 py-3">{r.date_of_deployment || "-"}</td>
                   <td className="px-4 py-3">
-                    <button onClick={() => openEdit(r)} className="p-2 hover:bg-orange-500/20 rounded"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => removeRow(r.vehicle_master_id)} className="p-2 hover:bg-red-500/20 rounded ml-2"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      onClick={() => openEdit(r)}
+                      className="p-2 hover:bg-orange-500/20 rounded"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => removeRow(r.vehicle_master_id)}
+                      className="p-2 hover:bg-red-500/20 rounded ml-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={19} className="text-center py-16 text-orange-400">No vehicles found</td>
+                  <td
+                    colSpan={19}
+                    className="text-center py-16 text-orange-400"
+                  >
+                    No vehicles found
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -380,12 +489,20 @@ export default function VehicleMaster() {
         {/* Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 overflow-y-auto">
-            <div className="bg-gray-900 p-8 rounded-2xl border-2 border-orange-500 w-full max-w-6xl my-8">
+            <div
+              className="bg-gray-900 p-8 rounded-2xl border-2 border-orange-500 
+  w-full max-w-6xl 
+  max-h-[85vh] overflow-y-auto"
+            >
               <h2 className="text-2xl font-bold text-orange-300 mb-6">
                 {editing ? "Edit" : "Add"} Vehicle
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                <Input label="Unique ID *" value={form.vehicle_unique_id} disabled />
+                <Input
+                  label="Unique ID *"
+                  value={form.vehicle_unique_id}
+                  disabled
+                />
 
                 <Input
                   label="Reg No./VIN *"
@@ -397,7 +514,10 @@ export default function VehicleMaster() {
                   label="Customer *"
                   value={form.customer_id}
                   onChange={(v) => setForm({ ...form, customer_id: v })}
-                  options={customers.map(c => ({ value: c.customer_id, label: c.company_name }))}
+                  options={customers.map((c) => ({
+                    value: c.customer_id,
+                    label: c.company_name,
+                  }))}
                   placeholder="Select customer"
                 />
 
@@ -405,7 +525,10 @@ export default function VehicleMaster() {
                   label="Vehicle Type *"
                   value={form.vtype_id}
                   onChange={(v) => setForm({ ...form, vtype_id: v })}
-                  options={vehicleTypes.map(vt => ({ value: vt.vtype_id, label: `${vt.make} ${vt.model}` }))}
+                  options={vehicleTypes.map((vt) => ({
+                    value: vt.vtype_id,
+                    label: `${vt.make} ${vt.model}`,
+                  }))}
                   placeholder="Select vehicle type"
                 />
 
@@ -413,7 +536,12 @@ export default function VehicleMaster() {
                   label="VCU"
                   value={form.vcu_id}
                   onChange={(v) => setForm({ ...form, vcu_id: v })}
-                  options={vcus.map(v => ({ value: v.vcu_id, label: `${v.vcu_make} ${v.vcu_model}`.trim() || `VCU ID: ${v.vcu_id}` }))}
+                  options={vcus.map((v) => ({
+                    value: v.vcu_id,
+                    label:
+                      `${v.vcu_make} ${v.vcu_model}`.trim() ||
+                      `VCU ID: ${v.vcu_id}`,
+                  }))}
                   placeholder="Select VCU (optional)"
                 />
 
@@ -428,7 +556,12 @@ export default function VehicleMaster() {
                   label="HMI"
                   value={form.hmi_id}
                   onChange={(v) => setForm({ ...form, hmi_id: v })}
-                  options={hmis.map(h => ({ value: h.hmi_id, label: `${h.hmi_make} ${h.hmi_model}`.trim() || `HMI ID: ${h.hmi_id}` }))}
+                  options={hmis.map((h) => ({
+                    value: h.hmi_id,
+                    label:
+                      `${h.hmi_make} ${h.hmi_model}`.trim() ||
+                      `HMI ID: ${h.hmi_id}`,
+                  }))}
                   placeholder="Select HMI (optional)"
                 />
 
@@ -439,11 +572,33 @@ export default function VehicleMaster() {
                   disabled={!!editing}
                 />
 
-                <Input label="Motor Make+Model" value={form.motor_make_model} onChange={(v) => setForm({ ...form, motor_make_model: v })} />
-                <Input label="Controller Make+Model" value={form.controller_make_model} onChange={(v) => setForm({ ...form, controller_make_model: v })} />
-                <Input label="Battery Make+Model" value={form.battery_make_model} onChange={(v) => setForm({ ...form, battery_make_model: v })} />
-                <Input label="DC/DC Converter" value={form.dc_dc_make_model} onChange={(v) => setForm({ ...form, dc_dc_make_model: v })} />
-                <Input label="BTMS" value={form.btms_make_model} onChange={(v) => setForm({ ...form, btms_make_model: v })} />
+                <Input
+                  label="Motor Make+Model"
+                  value={form.motor_make_model}
+                  onChange={(v) => setForm({ ...form, motor_make_model: v })}
+                />
+                <Input
+                  label="Controller Make+Model"
+                  value={form.controller_make_model}
+                  onChange={(v) =>
+                    setForm({ ...form, controller_make_model: v })
+                  }
+                />
+                <Input
+                  label="Battery Make+Model"
+                  value={form.battery_make_model}
+                  onChange={(v) => setForm({ ...form, battery_make_model: v })}
+                />
+                <Input
+                  label="DC/DC Converter"
+                  value={form.dc_dc_make_model}
+                  onChange={(v) => setForm({ ...form, dc_dc_make_model: v })}
+                />
+                <Input
+                  label="BTMS"
+                  value={form.btms_make_model}
+                  onChange={(v) => setForm({ ...form, btms_make_model: v })}
+                />
 
                 <YesNoSelect
                   label="Hydraulic Cooling"
@@ -454,7 +609,9 @@ export default function VehicleMaster() {
                   <TextArea
                     label="Hydraulic Cooling Details"
                     value={form.motor_controller_details}
-                    onChange={(v) => setForm({ ...form, motor_controller_details: v })}
+                    onChange={(v) =>
+                      setForm({ ...form, motor_controller_details: v })
+                    }
                   />
                 )}
 
@@ -467,7 +624,9 @@ export default function VehicleMaster() {
                   <TextArea
                     label="Compressor Details"
                     value={form.compressor_details}
-                    onChange={(v) => setForm({ ...form, compressor_details: v })}
+                    onChange={(v) =>
+                      setForm({ ...form, compressor_details: v })
+                    }
                   />
                 )}
 
@@ -480,7 +639,9 @@ export default function VehicleMaster() {
                   <TextArea
                     label="Motor Cooling Details"
                     value={form.motor_cooling_details}
-                    onChange={(v) => setForm({ ...form, motor_cooling_details: v })}
+                    onChange={(v) =>
+                      setForm({ ...form, motor_cooling_details: v })
+                    }
                   />
                 )}
 
@@ -548,7 +709,13 @@ function TextArea({ label, value = "", onChange }) {
   );
 }
 
-function Select({ label, value, onChange, options = [], placeholder = "Select..." }) {
+function Select({
+  label,
+  value,
+  onChange,
+  options = [],
+  placeholder = "Select...",
+}) {
   return (
     <label className="block">
       <span className="text-orange-300 text-xs">{label}</span>
@@ -557,7 +724,9 @@ function Select({ label, value, onChange, options = [], placeholder = "Select...
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
       >
-        <option value="" disabled>{placeholder}</option>
+        <option value="" disabled>
+          {placeholder}
+        </option>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
