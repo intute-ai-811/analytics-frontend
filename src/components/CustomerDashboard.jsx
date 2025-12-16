@@ -5,6 +5,7 @@ import { ArrowUpDown, Search, RefreshCcw, Loader2, AlertCircle } from "lucide-re
 import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const PAGE_SIZE = 8;
 
 /** Table columns — customer view */
 const columns = [
@@ -19,13 +20,13 @@ const columns = [
   { key: "avgKwh",      label: "Avg kWh",          width: "w-28", sortable: false },
 ];
 
-function Pill({ children }) {
-  return (
-    <span className="px-2 py-1 text-xs rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-200">
-      {children}
-    </span>
-  );
-}
+const Pill = React.memo(({ children }) => (
+  <span className="px-2 py-1 text-xs rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-200">
+    {children}
+  </span>
+));
+
+const safe = (v) => (v && v.trim() ? v.trim() : "—");
 
 export default function CustomerDashboard() {
   const [rows, setRows] = useState([]);
@@ -35,7 +36,6 @@ export default function CustomerDashboard() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState({ key: "vehicleType", dir: "asc" });
   const [page, setPage] = useState(1);
-  const pageSize = 8;
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -52,13 +52,26 @@ export default function CustomerDashboard() {
 
       const mapped = res.data.map((row) => ({
         id: row.vehicle_master_id,
-        vehicleType: `${row.vehicle_make || ""} ${row.vehicle_model || ""}`.trim() || "—",
-        vehicleNo: row.vehicle_reg_no || "—",
-        vcuId: row.vcu_display || "—",
-        hmiId: row.hmi_display || "—",
+
+        vehicleType:
+          `${row.vehicle_make || ""} ${row.vehicle_model || ""}`.trim() || "—",
+
+        vehicleNo: safe(row.vehicle_reg_no),
+
+        vcuId:
+          row.vcu_make && row.vcu_model
+            ? `${row.vcu_make} ${row.vcu_model}`
+            : "—",
+
+        hmiId:
+          row.hmi_make && row.hmi_model
+            ? `${row.hmi_make} ${row.hmi_model}`
+            : "—",
+
         delivery: row.date_of_deployment
           ? new Date(row.date_of_deployment).toLocaleDateString("en-IN")
           : "—",
+
         totalHours: 0,
         totalKwh: 0,
         avgKwh: 0,
@@ -98,7 +111,12 @@ export default function CustomerDashboard() {
     );
   };
 
-  /** Search only on Vehicle Type & Vehicle Number */
+  /** Reset page when search query changes */
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  /** Search + Sort */
   const filtered = useMemo(() => {
     let data = [...rows];
     const q = query.trim().toLowerCase();
@@ -112,9 +130,9 @@ export default function CustomerDashboard() {
 
     if (["vehicleType", "vehicleNo"].includes(sort.key)) {
       const dir = sort.dir === "asc" ? 1 : -1;
-      data.sort((a, b) => {
-        const A = (a[sort.key] ?? "").toString().toLowerCase();
-        const B = (b[sort.key] ?? "").toString().toLowerCase();
+      data = [...data].sort((a, b) => {
+        const A = (a[sort.key] ?? "").toLowerCase();
+        const B = (b[sort.key] ?? "").toLowerCase();
         return A.localeCompare(B) * dir;
       });
     }
@@ -122,14 +140,14 @@ export default function CustomerDashboard() {
     return data;
   }, [rows, query, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   useEffect(() => {
     if (page > totalPages) setPage(1);
   }, [totalPages, page]);
 
   const paged = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, page]);
 
   const handleRowClick = (row) => {
@@ -244,11 +262,14 @@ export default function CustomerDashboard() {
                   paged.map((row, idx) => (
                     <tr
                       key={row.id}
-                      onClick={() => handleRowClick(row)}
+                      onClick={(e) => {
+                        if (window.getSelection().toString()) return;
+                        handleRowClick(row);
+                      }}
                       className="group cursor-pointer hover:bg-orange-500/5 transition"
                     >
                       <td className="px-5 py-4 text-sm text-gray-200">
-                        {(page - 1) * pageSize + idx + 1}
+                        {(page - 1) * PAGE_SIZE + idx + 1}
                       </td>
                       <td className="px-5 py-4"><Pill>{row.vehicleType}</Pill></td>
                       <td className="px-5 py-4 text-gray-100 font-medium">{row.vehicleNo}</td>
