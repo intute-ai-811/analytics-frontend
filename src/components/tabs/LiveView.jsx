@@ -84,6 +84,11 @@ export default function LiveView() {
       ? (dcCurrent * stackVoltage) / 1000
       : null;
 
+  const dcdcInputPowerKw =
+    live.dcdc_input_voltage_v != null && live.dcdc_input_current_a != null
+      ? (live.dcdc_input_voltage_v * live.dcdc_input_current_a) / 1000
+      : null;
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-orange-300 mb-4 text-center">
@@ -152,6 +157,23 @@ export default function LiveView() {
           <Item name="Last Trip Hours" value={<Val v={live.last_trip_hrs} fixed={1} unit=" h" />} />
           <Item name="Total kWh Consumed" value={<Val v={live.total_kwh} unit=" kWh" />} />
           <Item name="kWh Used in Last Trip" value={<Val v={live.last_trip_kwh} unit=" kWh" />} />
+        </Section>
+
+        {/* === DC-DC CONVERTER === */}
+        <Section title="DC-DC Converter">
+          <Item name="DC-DC Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit=" V" />} />
+          <Item name="DC-DC Input Current" value={<Val v={live.dcdc_input_current_a} unit=" A" />} />
+          <Item name="DC-DC Input Power" value={<Val v={dcdcInputPowerKw} unit=" kW" />} />
+          <Item name="DC-DC Output Voltage" value={<Val v={live.dcdc_output_voltage_v} unit=" V" />} />
+          <Item name="DC-DC Output Current" value={<Val v={live.dcdc_output_current_a} unit=" A" />} />
+          <Item name="Pri A MOSFET Temperature" value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />} />
+          <Item name="Pri C MOSFET Temperature" value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />} />
+          <Item name="Sec LS MOSFET Temperature" value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />} />
+          <Item name="Sec HS MOSFET Temperature" value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />} />
+          <Item
+            name="DC-DC Overcurrent Fault Count"
+            value={live.dcdc_occurence_count ?? "–"}
+          />
         </Section>
 
         {/* === ALARMS === */}
