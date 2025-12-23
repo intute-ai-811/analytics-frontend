@@ -99,10 +99,7 @@ export default function LiveView() {
         {/* === BATTERY / CHARGER === */}
         <Section title="Battery / BTMS / Charger Live Data">
           <Item name="State of Charge %" value={<Val v={live.soc_percent} fixed={1} />} />
-          <Item name="State of Charge (kWh)" value={<Val v={live.battery_kwh} unit=" kWh" />} />
           <Item name="Battery Status" value={live.battery_status ?? "–"} />
-          <Item name="BTMS Status" value={live.btms_status ?? "–"} />
-          <Item name="Charger Status (gun connected/disconnected)" value={live.charger_connected ?? "–"} />
 
           {[0, 1, 2, 3, 4].map((i) => (
             <Item
@@ -123,7 +120,6 @@ export default function LiveView() {
           <Item name="Output Current (DC)" value={<Val v={live.dc_current_a} unit=" A" />} />
           <Item name="Stack Voltage" value={<Val v={live.stack_voltage_v} unit=" V" />} />
           <Item name="Output Power" value={<Val v={outputPowerKw} unit=" kW" />} />
-          <Item name="BTMS Temperature" value={<Val v={live.hyd_oil_temp_c} unit="°C" />} />
           <Item name="Charging Current" value={<Val v={live.charging_current_a} unit=" A" />} />
         </Section>
 
@@ -133,7 +129,7 @@ export default function LiveView() {
           <Item name="Operation Mode" value={live.motor_operation_mode ?? "–"} />
           <Item name="Motor Speed (RPM)" value={<Val v={live.motor_speed_rpm} fixed={0} />} />
           <Item name="Motor AC Side Current" value={<Val v={live.ac_current_a} unit=" A" />} />
-          <Item name="Motor Torque Limit Value" value={<Val v={live.motor_torque_limit} unit=" Nm" />} />
+          <Item name="Motor Torque Limit" value={<Val v={live.motor_torque_limit} unit=" Nm" />} />
           <Item name="Motor Rotation Direction" value={live.motor_rotation_dir ?? "–"} />
           <Item name="Motor Temperature" value={<Val v={live.motor_temp_c} unit="°C" />} />
           <Item name="Motor AC Side Voltage" value={<Val v={live.motor_ac_voltage_v} unit=" V" />} />
@@ -141,14 +137,11 @@ export default function LiveView() {
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
         </Section>
 
-        {/* === PERIPHERALS === */}
+        {/* === PERIPHERALS (FIXED) === */}
         <Section title="Peripherals Live Data">
           <Item name="Radiator Temperature" value={<Val v={live.radiator_temp_c} unit="°C" />} />
           <Item name="Hydraulic Oil Temperature" value={<Val v={live.hyd_oil_temp_c} unit="°C" />} />
           <Item name="Hydraulic Pump RPM" value={<Val v={live.hyd_pump_rpm} fixed={0} />} />
-          <Item name="Hydraulic Pump Motor Temperature" value={<Val v={live.motor_temp_c} unit="°C" />} />
-          <Item name="DC/DC Converter Output Current" value={<Val v={live.dc_dc_current_a} unit=" A" />} />
-          <Item name="DC/DC Converter Status" value={live.dc_dc_status ?? "–"} />
         </Section>
 
         {/* === ODO / TRIP === */}
@@ -185,10 +178,14 @@ export default function LiveView() {
                 key={k}
                 className="flex justify-between items-center bg-gray-800/40 px-3 py-2 rounded-md text-sm border border-orange-500/20"
               >
-                <span className="text-gray-300">{k.replace("alarms_", "").replace(/_/g, " ")}</span>
+                <span className="text-gray-300">
+                  {k.replace("alarms_", "").replace(/_/g, " ")}
+                </span>
                 <span
                   className={`px-3 py-1 rounded-md text-xs font-semibold ${
-                    v ? "bg-red-600/20 text-red-300" : "bg-emerald-600/20 text-emerald-300"
+                    v
+                      ? "bg-red-600/20 text-red-300"
+                      : "bg-emerald-600/20 text-emerald-300"
                   }`}
                 >
                   {v ? "YES" : "NO"}
