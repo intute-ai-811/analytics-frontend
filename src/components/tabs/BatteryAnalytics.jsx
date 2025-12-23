@@ -23,7 +23,7 @@ export default function BatteryAnalytics() {
         if (!res.ok) throw new Error("Failed to load battery analytics");
 
         const rows = await res.json();
-        setData(rows);
+        setData(Array.isArray(rows) ? rows : []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -36,32 +36,47 @@ export default function BatteryAnalytics() {
 
   /* ===== ODO SUMMARY (30 DAYS) ===== */
   const odo = useMemo(() => {
-    if (data.length < 2)
+    if (data.length < 2) {
       return {
-        energyUsed: 0,
+        energyUsed: null,
         maxCurrent: 0,
         maxTemp: 0,
-        avgTemp: 0,
+        avgTemp: null,
       };
+    }
 
     const newest = data[0];
     const oldest = data[data.length - 1];
 
-    const energyUsed =
-      (newest.total_kwh_consumed || 0) -
-      (oldest.total_kwh_consumed || 0);
+    let energyUsed = null;
+    if (
+      newest.total_kwh_consumed != null &&
+      oldest.total_kwh_consumed != null &&
+      newest.total_kwh_consumed >= oldest.total_kwh_consumed
+    ) {
+      energyUsed =
+        newest.total_kwh_consumed - oldest.total_kwh_consumed;
+    }
+
+    const currents = data
+      .map(d => d.max_op_dc_current_a)
+      .filter(v => v != null);
+
+    const maxTemps = data
+      .map(d => d.max_cell_temp_c)
+      .filter(v => v != null);
+
+    const avgTemps = data
+      .map(d => d.avg_cell_temp_c)
+      .filter(v => v != null);
 
     return {
-      energyUsed: Math.max(energyUsed, 0),
-      maxCurrent: Math.max(
-        ...data.map(d => d.max_op_dc_current_a || 0)
-      ),
-      maxTemp: Math.max(
-        ...data.map(d => d.max_cell_temp_c || 0)
-      ),
-      avgTemp:
-        data.reduce((s, d) => s + (d.avg_cell_temp_c || 0), 0) /
-        data.length,
+      energyUsed,
+      maxCurrent: currents.length ? Math.max(...currents) : 0,
+      maxTemp: maxTemps.length ? Math.max(...maxTemps) : 0,
+      avgTemp: avgTemps.length
+        ? avgTemps.reduce((s, v) => s + v, 0) / avgTemps.length
+        : null,
     };
   }, [data]);
 
@@ -94,16 +109,8 @@ export default function BatteryAnalytics() {
       {/* ===== SUMMARY ===== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Section title="ODO Summary (Last 30 Days)">
-          <Stat
-            label="Energy Used"
-            value={odo.energyUsed}
-            unit="kWh"
-          />
-          <Stat
-            label="Max DC Current"
-            value={odo.maxCurrent}
-            unit="A"
-          />
+          <Stat label="Energy Used" value={odo.energyUsed} unit="kWh" />
+          <Stat label="Max DC Current" value={odo.maxCurrent} unit="A" />
           <Stat
             label="Max Cell Temperature"
             value={odo.maxTemp}
@@ -190,7 +197,15 @@ function Section({ title, children }) {
 }
 
 function Stat({ label, value, unit, warn, danger }) {
-  const v = Number(value || 0);
+  if (value == null)
+    return (
+      <div className="flex justify-between bg-gray-800/40 px-4 py-3 rounded-md border border-orange-500/20">
+        <span className="text-gray-300 text-sm">{label}</span>
+        <span className="text-gray-400 font-semibold">–</span>
+      </div>
+    );
+
+  const v = Number(value);
   let color = "text-emerald-300";
 
   if (warn && danger) {
@@ -240,7 +255,7 @@ function BarChart({ data, band }) {
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[160px]">
       {data.map((d, i) => {
         const x = pad + i * (barWidth + gap);
-        const barH = (d.y / maxY) * h;
+        const barH = ((d.y || 0) / maxY) * h;
         const y = pad + h - barH;
 
         let fill = "rgb(251,146,60)";

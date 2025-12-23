@@ -17,15 +17,13 @@ export default function MotorAnalytics() {
 
         const res = await fetch(
           `/api/motor/analytics/${id}?days=30`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
 
         if (!res.ok) throw new Error("Failed to load motor analytics");
 
         const rows = await res.json();
-        setData(rows);
+        setData(rows || []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -36,22 +34,25 @@ export default function MotorAnalytics() {
     if (id) fetchData();
   }, [id]);
 
-  /* ===== ODO SUMMARY (30 DAYS) ===== */
+  /* ===== ODO SUMMARY (30 DAYS – DAILY PEAKS) ===== */
   const odo = useMemo(() => {
     if (!data.length)
       return { maxPower: 0, maxTorque: 0, maxTemp: 0 };
 
     return {
-      maxPower: Math.max(...data.map(d => d.max_op_power_kw || 0)),
-      maxTorque: Math.max(...data.map(d => d.max_op_torque_nm || 0)),
-      maxTemp: Math.max(...data.map(d => d.max_motor_temp_c || 0)),
+      maxPower: Math.max(...data.map(d => d.max_op_power_kw ?? 0)),
+      maxTorque: Math.max(...data.map(d => d.max_op_torque_nm ?? 0)),
+      maxTemp: Math.max(...data.map(d => d.max_motor_temp_c ?? 0)),
     };
   }, [data]);
 
-  /* ===== LATEST DAY SUMMARY ===== */
-  const latest = useMemo(() => data[0] || {}, [data]);
+  /* ===== LATEST TRIP SUMMARY ===== */
+  const latestTrip = useMemo(() => {
+    if (!data.length) return {};
+    return data[0]; // latest day contains latest-trip peaks
+  }, [data]);
 
-  /* ===== CHART DATA (ASC for UX) ===== */
+  /* ===== CHART DATA (ASC FOR UX) ===== */
   const chartData = useMemo(() => [...data].reverse(), [data]);
 
   if (loading)
@@ -76,9 +77,10 @@ export default function MotorAnalytics() {
 
       {/* ===== SUMMARY ===== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* ===== ODO SUMMARY ===== */}
         <Section title="ODO Summary (Last 30 Days)">
-          <Stat label="Max O/P Power" value={odo.maxPower} unit="kW" />
-          <Stat label="Max O/P Torque" value={odo.maxTorque} unit="Nm" />
+          <Stat label="Max Output Power" value={odo.maxPower} unit="kW" />
+          <Stat label="Max Output Torque" value={odo.maxTorque} unit="Nm" />
           <Stat
             label="Max Motor Temperature"
             value={odo.maxTemp}
@@ -88,20 +90,21 @@ export default function MotorAnalytics() {
           />
         </Section>
 
-        <Section title="Latest Day">
+        {/* ===== LATEST TRIP ===== */}
+        <Section title="Latest Trip">
           <Stat
-            label="Max O/P Power"
-            value={latest.max_op_power_kw}
+            label="Max Output Power (Trip)"
+            value={latestTrip.max_op_power_last_trip}
             unit="kW"
           />
           <Stat
-            label="Max O/P Torque"
-            value={latest.max_op_torque_nm}
+            label="Max Output Torque (Trip)"
+            value={latestTrip.max_op_torque_last_trip}
             unit="Nm"
           />
           <Stat
-            label="Max Motor Temperature"
-            value={latest.max_motor_temp_c}
+            label="Max Motor Temperature (Trip)"
+            value={latestTrip.max_motor_temp_last_trip}
             unit="°C"
             warn={80}
             danger={95}
@@ -111,29 +114,29 @@ export default function MotorAnalytics() {
 
       {/* ===== CHARTS ===== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ChartCard title="Max Power (kW) — Last 30 Days">
+        <ChartCard title="Max Output Power (kW) — Last 30 Days">
           <BarChart
             data={chartData.map(d => ({
               x: d.day,
-              y: d.max_op_power_kw,
+              y: d.max_op_power_kw ?? 0,
             }))}
           />
         </ChartCard>
 
-        <ChartCard title="Max Torque (Nm) — Last 30 Days">
+        <ChartCard title="Max Output Torque (Nm) — Last 30 Days">
           <BarChart
             data={chartData.map(d => ({
               x: d.day,
-              y: d.max_op_torque_nm,
+              y: d.max_op_torque_nm ?? 0,
             }))}
           />
         </ChartCard>
 
-        <ChartCard title="Max Motor Temp (°C) — Last 30 Days">
+        <ChartCard title="Max Motor Temperature (°C) — Last 30 Days">
           <BarChart
             data={chartData.map(d => ({
               x: d.day,
-              y: d.max_motor_temp_c,
+              y: d.max_motor_temp_c ?? 0,
             }))}
             band={{ warn: 80, danger: 95 }}
           />
@@ -143,7 +146,7 @@ export default function MotorAnalytics() {
   );
 }
 
-/* ========================= LOCAL UI HELPERS ========================= */
+/* ========================= UI HELPERS ========================= */
 
 function Section({ title, children }) {
   return (
@@ -155,7 +158,7 @@ function Section({ title, children }) {
 }
 
 function Stat({ label, value, unit, warn, danger }) {
-  const v = Number(value || 0);
+  const v = Number(value ?? 0);
   let color = "text-emerald-300";
 
   if (warn && danger) {
