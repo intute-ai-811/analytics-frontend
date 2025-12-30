@@ -1,26 +1,36 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { io } from "socket.io-client";
 
-/* ========================= LIVE VIEW ========================= */
+/* ========================= LIVE VIEW (HYBRID) ========================= */
 export default function LiveView() {
   const { id } = useParams();
+
   const [live, setLive] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState("REST"); // REST | SOCKET
+
+  // Holds fast-updating data (0.5s)
+  const latestLiveRef = useRef(null);
 
   useEffect(() => {
     if (!id) return;
 
-    const controller = new AbortController();
+    let socket;
+    let renderTimer;
+    let fallbackTimer;
 
-    const fetchLive = async () => {
+    const token = localStorage.getItem("token");
+
+    /* =========================
+       INITIAL SNAPSHOT (REST)
+    ========================= */
+    const fetchLiveOnce = async () => {
       try {
-        setLoading(true);
-        const token = localStorage.getItem("token");
         if (!token) throw new Error("Please log in");
 
         const res = await fetch(`/api/vehicles/${id}/live`, {
-          signal: controller.signal,
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -30,27 +40,69 @@ export default function LiveView() {
         }
 
         const data = await res.json();
+        latestLiveRef.current = data;
         setLive(data || {});
         setError(null);
+        setMode("REST");
       } catch (err) {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setError(err.message);
-        }
+        console.error(err);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLive();
-    const interval = setInterval(fetchLive, 500);
+    fetchLiveOnce();
+
+    /* =========================
+       SOCKET CONNECTION
+    ========================= */
+    socket = io("/", {
+      auth: { token },
+      transports: ["websocket"],
+    });
+
+    socket.on("connect", () => {
+      socket.emit("subscribe_vehicle", { vehicleId: id });
+      setMode("SOCKET");
+
+      // Stop REST fallback if socket is healthy
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+    });
+
+    socket.on("live_update", (data) => {
+      latestLiveRef.current = data; // fast updates (0.5s)
+    });
+
+    socket.on("disconnect", () => {
+      setMode("REST");
+
+      // REST fallback every 1s
+      if (!fallbackTimer) {
+        fallbackTimer = setInterval(fetchLiveOnce, 1000);
+      }
+    });
+
+    /* =========================
+       UI RENDER LOOP (1s)
+    ========================= */
+    renderTimer = setInterval(() => {
+      if (latestLiveRef.current) {
+        setLive(latestLiveRef.current);
+      }
+    }, 1000);
 
     return () => {
-      clearInterval(interval);
-      controller.abort();
+      socket?.disconnect();
+      clearInterval(renderTimer);
+      if (fallbackTimer) clearInterval(fallbackTimer);
     };
   }, [id]);
 
+  /* ========================= UI HELPERS ========================= */
   const Val = ({ v, unit = "", fixed = 2 }) => (
     <span className="text-orange-300 font-semibold">
       {v === null || v === undefined ? "–" : `${Number(v).toFixed(fixed)}${unit}`}
@@ -71,17 +123,25 @@ export default function LiveView() {
     </div>
   );
 
+  /* ========================= STATE ========================= */
   if (loading && Object.keys(live).length === 0)
-    return <div className="text-center py-12 text-orange-200">Loading live data…</div>;
+    return (
+      <div className="text-center py-12 text-orange-200">
+        Loading live data…
+      </div>
+    );
 
   if (error)
-    return <div className="text-center py-12 text-red-400">Error: {error}</div>;
+    return (
+      <div className="text-center py-12 text-red-400">
+        Error: {error}
+      </div>
+    );
 
-  const dcCurrent = live.dc_current_a;
-  const stackVoltage = live.stack_voltage_v;
+  /* ========================= DERIVED VALUES ========================= */
   const outputPowerKw =
-    dcCurrent != null && stackVoltage != null
-      ? (dcCurrent * stackVoltage) / 1000
+    live.dc_current_a != null && live.stack_voltage_v != null
+      ? (live.dc_current_a * live.stack_voltage_v) / 1000
       : null;
 
   const dcdcInputPowerKw =
@@ -89,11 +149,24 @@ export default function LiveView() {
       ? (live.dcdc_input_voltage_v * live.dcdc_input_current_a) / 1000
       : null;
 
+  /* ========================= RENDER ========================= */
   return (
     <div>
-      <h2 className="text-xl font-semibold text-orange-300 mb-4 text-center">
-        Live Data (Auto refresh every 500ms)
+      <h2 className="text-xl font-semibold text-orange-300 mb-2 text-center">
+        Live Data
       </h2>
+
+      <div className="text-center text-xs mb-4">
+        <span
+          className={`px-3 py-1 rounded-full font-semibold ${
+            mode === "SOCKET"
+              ? "bg-emerald-600/20 text-emerald-300"
+              : "bg-yellow-600/20 text-yellow-300"
+          }`}
+        >
+          {mode === "SOCKET" ? "LIVE (WebSocket)" : "Fallback (REST)"}
+        </span>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* === BATTERY / CHARGER === */}
@@ -137,21 +210,6 @@ export default function LiveView() {
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
         </Section>
 
-        {/* === PERIPHERALS (FIXED) === */}
-        <Section title="Peripherals Live Data">
-          <Item name="Radiator Temperature" value={<Val v={live.radiator_temp_c} unit="°C" />} />
-          <Item name="Hydraulic Oil Temperature" value={<Val v={live.hyd_oil_temp_c} unit="°C" />} />
-          <Item name="Hydraulic Pump RPM" value={<Val v={live.hyd_pump_rpm} fixed={0} />} />
-        </Section>
-
-        {/* === ODO / TRIP === */}
-        <Section title="ODO / Trip Details">
-          <Item name="Total Running Hours" value={<Val v={live.total_hours} fixed={1} unit=" h" />} />
-          <Item name="Last Trip Hours" value={<Val v={live.last_trip_hrs} fixed={1} unit=" h" />} />
-          <Item name="Total kWh Consumed" value={<Val v={live.total_kwh} unit=" kWh" />} />
-          <Item name="kWh Used in Last Trip" value={<Val v={live.last_trip_kwh} unit=" kWh" />} />
-        </Section>
-
         {/* === DC-DC CONVERTER === */}
         <Section title="DC-DC Converter">
           <Item name="DC-DC Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit=" V" />} />
@@ -159,10 +217,10 @@ export default function LiveView() {
           <Item name="DC-DC Input Power" value={<Val v={dcdcInputPowerKw} unit=" kW" />} />
           <Item name="DC-DC Output Voltage" value={<Val v={live.dcdc_output_voltage_v} unit=" V" />} />
           <Item name="DC-DC Output Current" value={<Val v={live.dcdc_output_current_a} unit=" A" />} />
-          <Item name="Pri A MOSFET Temperature" value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />} />
-          <Item name="Pri C MOSFET Temperature" value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />} />
-          <Item name="Sec LS MOSFET Temperature" value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />} />
-          <Item name="Sec HS MOSFET Temperature" value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />} />
+          <Item name="Pri A MOSFET Temp" value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />} />
+          <Item name="Pri C MOSFET Temp" value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />} />
+          <Item name="Sec LS MOSFET Temp" value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />} />
+          <Item name="Sec HS MOSFET Temp" value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />} />
           <Item
             name="DC-DC Overcurrent Fault Count"
             value={live.dcdc_occurence_count ?? "–"}
