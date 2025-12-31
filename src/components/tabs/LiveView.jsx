@@ -18,7 +18,11 @@ export default function LiveView() {
   const latestLiveRef = useRef(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setError("Invalid vehicle ID");
+      setLoading(false);
+      return;
+    }
 
     let socket;
     let renderTimer;
@@ -27,7 +31,7 @@ export default function LiveView() {
     const token = localStorage.getItem("token");
 
     if (!token) {
-      setError("Please log in");
+      setError("Please log in to view live data");
       setLoading(false);
       return;
     }
@@ -37,11 +41,16 @@ export default function LiveView() {
     ========================= */
     const fetchLiveOnce = async () => {
       try {
-        const res = await fetch(`/api/vehicles/${id}/live, {
-          headers: { Authorization: Bearer ${token}},
-        }`);
+        const res = await fetch(`/api/vehicles/${id}/live`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`HTTP ${res.status}: ${text || "Unknown error"}`);
+        }
 
         const data = await res.json();
         latestLiveRef.current = data;
@@ -74,6 +83,8 @@ export default function LiveView() {
       console.log("Socket connected");
       socket.emit("subscribe_vehicle", { vehicleId: id });
       setMode("SOCKET");
+
+      // Clear fallback polling if socket connects
       if (fallbackTimer) {
         clearInterval(fallbackTimer);
         fallbackTimer = null;
@@ -87,6 +98,8 @@ export default function LiveView() {
     socket.on("disconnect", (reason) => {
       console.warn("Socket disconnected:", reason);
       setMode("REST");
+
+      // Start fallback polling if not already running
       if (!fallbackTimer) {
         fallbackTimer = setInterval(fetchLiveOnce, 1000);
       }
@@ -98,7 +111,7 @@ export default function LiveView() {
     });
 
     /* =========================
-       UI RENDER LOOP (1Hz)
+       UI RENDER LOOP (1Hz update)
     ========================= */
     renderTimer = setInterval(() => {
       if (latestLiveRef.current) {
@@ -106,6 +119,9 @@ export default function LiveView() {
       }
     }, 1000);
 
+    /* =========================
+       CLEANUP
+    ========================= */
     return () => {
       socket?.disconnect();
       clearInterval(renderTimer);
@@ -136,14 +152,22 @@ export default function LiveView() {
 
   /* ========================= EARLY RETURNS ========================= */
   if (loading && !Object.keys(live).length) {
-    return <div className="text-center py-12 text-orange-200">Loading live data…</div>;
+    return (
+      <div className="text-center py-12 text-orange-200">
+        Loading live data…
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="text-center py-12 text-red-400">Error: {error}</div>;
+    return (
+      <div className="text-center py-12 text-red-400">
+        Error: {error}
+      </div>
+    );
   }
 
-  /* ========================= RENDER ========================= */
+  /* ========================= MAIN RENDER ========================= */
   return (
     <div className="max-w-7xl mx-auto p-4">
       <h2 className="text-2xl font-semibold text-orange-300 mb-4 text-center">
@@ -162,9 +186,9 @@ export default function LiveView() {
         </span>
       </div>
 
-      {/* === MAIN 2-COLUMN LAYOUT === */}
+      {/* === GRID LAYOUT === */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* === BATTERY / BTMS / CHARGER === */}
+        {/* Battery / BTMS / Charger */}
         <Section title="Battery / BTMS / Charger">
           <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
           <Item name="Battery Status" value={live.battery_status ?? "–"} />
@@ -190,7 +214,7 @@ export default function LiveView() {
           ))}
         </Section>
 
-        {/* === MOTOR & MCU === */}
+        {/* Motor & MCU */}
         <Section title="Motor & MCU">
           <Item name="Torque" value={<Val v={live.motor_torque_nm} unit="Nm" />} />
           <Item name="Operation Mode" value={live.motor_operation_mode ?? "–"} />
@@ -204,13 +228,14 @@ export default function LiveView() {
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
         </Section>
 
-        {/* === PERIPHERALS + ODO/TRIP (NEW: PLACED HERE, ABOVE DC-DC & ALARMS) === */}
+        {/* Peripherals */}
         <Section title="Peripherals Live Data">
           <Item name="Radiator Temperature" value={<Val v={live.radiator_temp_c} unit="°C" fixed={1} />} />
           <Item name="Hydraulic Oil Temperature" value="–" />
           <Item name="Hydraulic Pump RPM" value="–" />
         </Section>
 
+        {/* ODO / Trip */}
         <Section title="ODO / Trip Details">
           <Item name="Total Running Hours" value={<Val v={live.total_hours} fixed={2} unit=" h" />} />
           <Item name="Last Trip Hours" value={<Val v={live.last_trip_hrs} fixed={2} unit=" h" />} />
@@ -218,7 +243,7 @@ export default function LiveView() {
           <Item name="kWh Used in Last Trip" value={<Val v={live.last_trip_kwh} fixed={1} unit=" kWh" />} />
         </Section>
 
-        {/* === DC-DC CONVERTER === */}
+        {/* DC-DC Converter */}
         <Section title="DC-DC Converter">
           <Item name="Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit="V" />} />
           <Item name="Input Current" value={<Val v={live.dcdc_input_current_a} unit="A" />} />
@@ -239,7 +264,7 @@ export default function LiveView() {
           <Item name="Overcurrent Fault Count" value={live.dcdc_occurrence_count ?? "–"} />
         </Section>
 
-        {/* === ALARMS & WARNINGS === */}
+        {/* Alarms & Warnings */}
         <Section title="Alarms & Warnings">
           {Object.entries(live)
             .filter(([key]) => key.startsWith("alarms_"))
@@ -263,8 +288,11 @@ export default function LiveView() {
                 </span>
               </div>
             ))}
+
           {Object.keys(live).filter((k) => k.startsWith("alarms_")).length === 0 && (
-            <div className="text-gray-500 text-center py-4">No alarm data available</div>
+            <div className="text-gray-500 text-center py-4">
+              No alarm data available
+            </div>
           )}
         </Section>
       </div>
