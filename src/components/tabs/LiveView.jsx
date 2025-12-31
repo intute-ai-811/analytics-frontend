@@ -2,7 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
-/* ========================= LIVE VIEW (HYBRID) ========================= */
+/* =========================
+   BACKEND SOCKET URL
+========================= */
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 export default function LiveView() {
   const { id } = useParams();
 
@@ -11,7 +15,6 @@ export default function LiveView() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState("REST"); // REST | SOCKET
 
-  // Holds fast-updating data (0.5s)
   const latestLiveRef = useRef(null);
 
   useEffect(() => {
@@ -23,21 +26,22 @@ export default function LiveView() {
 
     const token = localStorage.getItem("token");
 
+    if (!token) {
+      setError("Please log in");
+      setLoading(false);
+      return;
+    }
+
     /* =========================
        INITIAL SNAPSHOT (REST)
     ========================= */
     const fetchLiveOnce = async () => {
       try {
-        if (!token) throw new Error("Please log in");
+        const res = await fetch(`/api/vehicles/${id}/live, {
+          headers: { Authorization: Bearer ${token}},
+        }`);
 
-        const res = await fetch(`/api/vehicles/${id}/live`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(`HTTP ${res.status}: ${txt}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
 
         const data = await res.json();
         latestLiveRef.current = data;
@@ -45,7 +49,7 @@ export default function LiveView() {
         setError(null);
         setMode("REST");
       } catch (err) {
-        console.error(err);
+        console.error("REST fetch error:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -55,18 +59,21 @@ export default function LiveView() {
     fetchLiveOnce();
 
     /* =========================
-       SOCKET CONNECTION
+       SOCKET.IO CONNECTION (ROBUST)
     ========================= */
-    socket = io("/", {
+    socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ["websocket"],
+      transports: ["polling", "websocket"],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     socket.on("connect", () => {
+      console.log("Socket connected");
       socket.emit("subscribe_vehicle", { vehicleId: id });
       setMode("SOCKET");
-
-      // Stop REST fallback if socket is healthy
       if (fallbackTimer) {
         clearInterval(fallbackTimer);
         fallbackTimer = null;
@@ -74,24 +81,28 @@ export default function LiveView() {
     });
 
     socket.on("live_update", (data) => {
-      latestLiveRef.current = data; // fast updates (0.5s)
+      latestLiveRef.current = data;
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
+      console.warn("Socket disconnected:", reason);
       setMode("REST");
-
-      // REST fallback every 1s
       if (!fallbackTimer) {
         fallbackTimer = setInterval(fetchLiveOnce, 1000);
       }
     });
 
+    socket.on("connect_error", (err) => {
+      console.error("Socket connect error:", err.message);
+      setMode("REST");
+    });
+
     /* =========================
-       UI RENDER LOOP (1s)
+       UI RENDER LOOP (1Hz)
     ========================= */
     renderTimer = setInterval(() => {
       if (latestLiveRef.current) {
-        setLive(latestLiveRef.current);
+        setLive({ ...latestLiveRef.current });
       }
     }, 1000);
 
@@ -105,7 +116,7 @@ export default function LiveView() {
   /* ========================= UI HELPERS ========================= */
   const Val = ({ v, unit = "", fixed = 2 }) => (
     <span className="text-orange-300 font-semibold">
-      {v === null || v === undefined ? "–" : `${Number(v).toFixed(fixed)}${unit}`}
+      {v == null ? "–" : `${Number(v).toFixed(fixed)}${unit}`}
     </span>
   );
 
@@ -123,61 +134,49 @@ export default function LiveView() {
     </div>
   );
 
-  /* ========================= STATE ========================= */
-  if (loading && Object.keys(live).length === 0)
-    return (
-      <div className="text-center py-12 text-orange-200">
-        Loading live data…
-      </div>
-    );
+  /* ========================= EARLY RETURNS ========================= */
+  if (loading && !Object.keys(live).length) {
+    return <div className="text-center py-12 text-orange-200">Loading live data…</div>;
+  }
 
-  if (error)
-    return (
-      <div className="text-center py-12 text-red-400">
-        Error: {error}
-      </div>
-    );
-
-  /* ========================= DERIVED VALUES ========================= */
-  const outputPowerKw =
-    live.dc_current_a != null && live.stack_voltage_v != null
-      ? (live.dc_current_a * live.stack_voltage_v) / 1000
-      : null;
-
-  const dcdcInputPowerKw =
-    live.dcdc_input_voltage_v != null && live.dcdc_input_current_a != null
-      ? (live.dcdc_input_voltage_v * live.dcdc_input_current_a) / 1000
-      : null;
+  if (error) {
+    return <div className="text-center py-12 text-red-400">Error: {error}</div>;
+  }
 
   /* ========================= RENDER ========================= */
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-orange-300 mb-2 text-center">
-        Live Data
+    <div className="max-w-7xl mx-auto p-4">
+      <h2 className="text-2xl font-semibold text-orange-300 mb-4 text-center">
+        Live Vehicle Data
       </h2>
 
-      <div className="text-center text-xs mb-4">
+      <div className="text-center mb-6">
         <span
-          className={`px-3 py-1 rounded-full font-semibold ${
+          className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${
             mode === "SOCKET"
-              ? "bg-emerald-600/20 text-emerald-300"
-              : "bg-yellow-600/20 text-yellow-300"
+              ? "bg-emerald-600/30 text-emerald-300 border border-emerald-500/50"
+              : "bg-yellow-600/30 text-yellow-300 border border-yellow-500/50"
           }`}
         >
-          {mode === "SOCKET" ? "LIVE (WebSocket)" : "Fallback (REST)"}
+          {mode === "SOCKET" ? "● LIVE (WebSocket)" : "◷ Fallback (REST Polling)"}
         </span>
       </div>
 
+      {/* === MAIN 2-COLUMN LAYOUT === */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* === BATTERY / CHARGER === */}
-        <Section title="Battery / BTMS / Charger Live Data">
-          <Item name="State of Charge %" value={<Val v={live.soc_percent} fixed={1} />} />
+        {/* === BATTERY / BTMS / CHARGER === */}
+        <Section title="Battery / BTMS / Charger">
+          <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
           <Item name="Battery Status" value={live.battery_status ?? "–"} />
+          <Item name="Stack Voltage" value={<Val v={live.stack_voltage_v} unit="V" />} />
+          <Item name="DC Output Current" value={<Val v={live.dc_current_a} unit="A" />} />
+          <Item name="Output Power" value={<Val v={live.output_power_kw} unit="kW" />} />
+          <Item name="Charging Current" value={<Val v={live.charging_current_a} unit="A" />} />
 
           {[0, 1, 2, 3, 4].map((i) => (
             <Item
               key={`temp-${i}`}
-              name={`Temperature Sensors (Module ${i + 1})`}
+              name={`Temp Sensor Module ${i + 1}`}
               value={<Val v={live.temp_sensors?.[i]} unit="°C" />}
             />
           ))}
@@ -185,71 +184,88 @@ export default function LiveView() {
           {[0, 1, 2, 3, 4].map((i) => (
             <Item
               key={`volt-${i}`}
-              name={`Cell Voltages (Module ${i + 1})`}
-              value={<Val v={live.cell_voltages?.[i]} unit=" V" fixed={3} />}
+              name={`Cell Voltage Module ${i + 1}`}
+              value={<Val v={live.cell_voltages?.[i]} unit="V" fixed={3} />}
             />
           ))}
-
-          <Item name="Output Current (DC)" value={<Val v={live.dc_current_a} unit=" A" />} />
-          <Item name="Stack Voltage" value={<Val v={live.stack_voltage_v} unit=" V" />} />
-          <Item name="Output Power" value={<Val v={outputPowerKw} unit=" kW" />} />
-          <Item name="Charging Current" value={<Val v={live.charging_current_a} unit=" A" />} />
         </Section>
 
         {/* === MOTOR & MCU === */}
-        <Section title="Motor & MCU Live Data">
-          <Item name="Motor Torque" value={<Val v={live.motor_torque_nm} unit=" Nm" />} />
+        <Section title="Motor & MCU">
+          <Item name="Torque" value={<Val v={live.motor_torque_nm} unit="Nm" />} />
           <Item name="Operation Mode" value={live.motor_operation_mode ?? "–"} />
-          <Item name="Motor Speed (RPM)" value={<Val v={live.motor_speed_rpm} fixed={0} />} />
-          <Item name="Motor AC Side Current" value={<Val v={live.ac_current_a} unit=" A" />} />
-          <Item name="Motor Torque Limit" value={<Val v={live.motor_torque_limit} unit=" Nm" />} />
-          <Item name="Motor Rotation Direction" value={live.motor_rotation_dir ?? "–"} />
+          <Item name="Speed" value={<Val v={live.motor_speed_rpm} fixed={0} unit="RPM" />} />
+          <Item name="AC Current" value={<Val v={live.ac_current_a} unit="A" />} />
+          <Item name="Torque Limit" value={<Val v={live.motor_torque_limit} unit="Nm" />} />
+          <Item name="Rotation Direction" value={live.motor_rotation_dir ?? "–"} />
           <Item name="Motor Temperature" value={<Val v={live.motor_temp_c} unit="°C" />} />
-          <Item name="Motor AC Side Voltage" value={<Val v={live.motor_ac_voltage_v} unit=" V" />} />
+          <Item name="AC Voltage" value={<Val v={live.motor_ac_voltage_v} unit="V" />} />
           <Item name="MCU Enable State" value={live.mcu_enable_state ?? "–"} />
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
         </Section>
 
+        {/* === PERIPHERALS + ODO/TRIP (NEW: PLACED HERE, ABOVE DC-DC & ALARMS) === */}
+        <Section title="Peripherals Live Data">
+          <Item name="Radiator Temperature" value={<Val v={live.radiator_temp_c} unit="°C" fixed={1} />} />
+          <Item name="Hydraulic Oil Temperature" value="–" />
+          <Item name="Hydraulic Pump RPM" value="–" />
+        </Section>
+
+        <Section title="ODO / Trip Details">
+          <Item name="Total Running Hours" value={<Val v={live.total_hours} fixed={2} unit=" h" />} />
+          <Item name="Last Trip Hours" value={<Val v={live.last_trip_hrs} fixed={2} unit=" h" />} />
+          <Item name="Total kWh Consumed" value={<Val v={live.total_kwh} fixed={1} unit=" kWh" />} />
+          <Item name="kWh Used in Last Trip" value={<Val v={live.last_trip_kwh} fixed={1} unit=" kWh" />} />
+        </Section>
+
         {/* === DC-DC CONVERTER === */}
         <Section title="DC-DC Converter">
-          <Item name="DC-DC Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit=" V" />} />
-          <Item name="DC-DC Input Current" value={<Val v={live.dcdc_input_current_a} unit=" A" />} />
-          <Item name="DC-DC Input Power" value={<Val v={dcdcInputPowerKw} unit=" kW" />} />
-          <Item name="DC-DC Output Voltage" value={<Val v={live.dcdc_output_voltage_v} unit=" V" />} />
-          <Item name="DC-DC Output Current" value={<Val v={live.dcdc_output_current_a} unit=" A" />} />
+          <Item name="Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit="V" />} />
+          <Item name="Input Current" value={<Val v={live.dcdc_input_current_a} unit="A" />} />
+          <Item
+            name="Input Power"
+            value={
+              live.dcdc_input_voltage_v != null && live.dcdc_input_current_a != null
+                ? <Val v={(live.dcdc_input_voltage_v * live.dcdc_input_current_a) / 1000} unit="kW" />
+                : "–"
+            }
+          />
+          <Item name="Output Voltage" value={<Val v={live.dcdc_output_voltage_v} unit="V" />} />
+          <Item name="Output Current" value={<Val v={live.dcdc_output_current_a} unit="A" />} />
           <Item name="Pri A MOSFET Temp" value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />} />
           <Item name="Pri C MOSFET Temp" value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />} />
           <Item name="Sec LS MOSFET Temp" value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />} />
           <Item name="Sec HS MOSFET Temp" value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />} />
-          <Item
-            name="DC-DC Overcurrent Fault Count"
-            value={live.dcdc_occurence_count ?? "–"}
-          />
+          <Item name="Overcurrent Fault Count" value={live.dcdc_occurrence_count ?? "–"} />
         </Section>
 
-        {/* === ALARMS === */}
+        {/* === ALARMS & WARNINGS === */}
         <Section title="Alarms & Warnings">
           {Object.entries(live)
-            .filter(([k]) => k.startsWith("alarms_"))
-            .map(([k, v]) => (
+            .filter(([key]) => key.startsWith("alarms_"))
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, value]) => (
               <div
-                key={k}
+                key={key}
                 className="flex justify-between items-center bg-gray-800/40 px-3 py-2 rounded-md text-sm border border-orange-500/20"
               >
-                <span className="text-gray-300">
-                  {k.replace("alarms_", "").replace(/_/g, " ")}
+                <span className="text-gray-300 capitalize">
+                  {key.replace("alarms_", "").replace(/_/g, " ")}
                 </span>
                 <span
                   className={`px-3 py-1 rounded-md text-xs font-semibold ${
-                    v
+                    value
                       ? "bg-red-600/20 text-red-300"
                       : "bg-emerald-600/20 text-emerald-300"
                   }`}
                 >
-                  {v ? "YES" : "NO"}
+                  {value ? "ACTIVE" : "OK"}
                 </span>
               </div>
             ))}
+          {Object.keys(live).filter((k) => k.startsWith("alarms_")).length === 0 && (
+            <div className="text-gray-500 text-center py-4">No alarm data available</div>
+          )}
         </Section>
       </div>
     </div>
