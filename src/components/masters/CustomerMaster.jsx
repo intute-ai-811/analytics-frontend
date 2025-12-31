@@ -1,4 +1,3 @@
-// src/components/CustomerMaster.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Plus,
@@ -6,12 +5,11 @@ import {
   Trash2,
   Search,
   Download,
-  AlertCircle,
   X,
 } from "lucide-react";
 import axios from "axios";
 
-// BACKEND URL
+/* ================= BACKEND ================= */
 const API_BASE = "http://localhost:5000/api/customers";
 
 const getAuthHeaders = () => {
@@ -19,6 +17,7 @@ const getAuthHeaders = () => {
   return user.token ? { Authorization: `Bearer ${user.token}` } : {};
 };
 
+/* ================= COMPONENT ================= */
 export default function CustomerMaster() {
   const [rows, setRows] = useState([]);
   const [query, setQuery] = useState("");
@@ -27,17 +26,18 @@ export default function CustomerMaster() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  /* ================= FETCH ================= */
   const fetchCustomers = async () => {
     setLoading(true);
     setError("");
-    const headers = getAuthHeaders();
 
     try {
-      const { data } = await axios.get(API_BASE, { headers });
+      const { data } = await axios.get(API_BASE, {
+        headers: getAuthHeaders(),
+      });
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
-      const msg = e.response?.data?.error || e.message;
-      setError(msg);
+      setError(e.response?.data?.error || e.message);
       setRows([]);
     } finally {
       setLoading(false);
@@ -48,10 +48,11 @@ export default function CustomerMaster() {
     fetchCustomers();
   }, []);
 
-  // SEARCH (Removed invoicing)
+  /* ================= SEARCH ================= */
   const filtered = useMemo(() => {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
+
     return rows.filter((r) =>
       [
         r.company_name,
@@ -59,7 +60,6 @@ export default function CustomerMaster() {
         r.contact_person,
         r.phone,
         r.email,
-        r.user_name,
       ]
         .join(" ")
         .toLowerCase()
@@ -67,7 +67,7 @@ export default function CustomerMaster() {
     );
   }, [rows, query]);
 
-  // ADD CUSTOMER
+  /* ================= ADD / EDIT ================= */
   const startAdd = () =>
     setEditing({
       company_name: "",
@@ -75,11 +75,8 @@ export default function CustomerMaster() {
       contact_person: "",
       phone: "",
       email: "",
-      password: "",
-      name: "",
     });
 
-  // EDIT CUSTOMER
   const startEdit = (r) => setEditing({ ...r });
   const cancelEdit = () => setEditing(null);
 
@@ -89,30 +86,28 @@ export default function CustomerMaster() {
 
     try {
       if (!editing.customer_id) {
-        // CREATE PAYLOAD (Removed invoicing)
+        /* ===== CREATE ===== */
         const payload = {
           company_name: editing.company_name.trim(),
           address: editing.address?.trim() || null,
           contact_person: editing.contact_person?.trim() || null,
           phone: editing.phone?.trim() || null,
           email: editing.email?.trim(),
-          password: editing.password,
-          name: editing.name?.trim() || editing.company_name.trim(),
         };
 
         const { data } = await axios.post(API_BASE, payload, {
           headers: getAuthHeaders(),
         });
 
-        const newRow = {
-          ...payload,
-          customer_id: data.customer_id,
-          user_name: payload.name,
-        };
-
-        setRows((prev) => [newRow, ...prev]);
+        setRows((prev) => [
+          {
+            ...payload,
+            customer_id: data.customer_id,
+          },
+          ...prev,
+        ]);
       } else {
-        // UPDATE PAYLOAD (Removed invoicing)
+        /* ===== UPDATE ===== */
         const payload = {
           company_name: editing.company_name.trim(),
           address: editing.address?.trim() || null,
@@ -120,13 +115,17 @@ export default function CustomerMaster() {
           phone: editing.phone?.trim() || null,
         };
 
-        await axios.put(`${API_BASE}/${editing.customer_id}`, payload, {
-          headers: getAuthHeaders(),
-        });
+        await axios.put(
+          `${API_BASE}/${editing.customer_id}`,
+          payload,
+          { headers: getAuthHeaders() }
+        );
 
         setRows((prev) =>
           prev.map((r) =>
-            r.customer_id === editing.customer_id ? { ...r, ...payload } : r
+            r.customer_id === editing.customer_id
+              ? { ...r, ...payload }
+              : r
           )
         );
       }
@@ -137,7 +136,7 @@ export default function CustomerMaster() {
     }
   };
 
-  // DELETE CUSTOMER
+  /* ================= DELETE ================= */
   const askDelete = (id) => setConfirmId(id);
 
   const doDelete = async () => {
@@ -153,9 +152,9 @@ export default function CustomerMaster() {
     }
   };
 
-  // EXPORT CSV (Removed invoicing column)
+  /* ================= EXPORT ================= */
   const exportCsv = () => {
-    const headers = "Company,Address,Contact,Phone,Email,Name\n";
+    const headers = "Company,Address,Contact Person,Phone,Email\n";
     const csv = rows
       .map((r) =>
         [
@@ -164,7 +163,6 @@ export default function CustomerMaster() {
           r.contact_person || "",
           r.phone || "",
           r.email || "",
-          r.user_name || "",
         ]
           .map((v) => `"${(v || "").toString().replace(/"/g, '""')}"`)
           .join(",")
@@ -173,23 +171,28 @@ export default function CustomerMaster() {
 
     const blob = new Blob([headers + csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
+
     const a = document.createElement("a");
     a.href = url;
     a.download = `customers_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
+
     URL.revokeObjectURL(url);
   };
 
+  /* ================= UI ================= */
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white px-6 py-10">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white px-6 py-10">
       <div className="max-w-7xl mx-auto space-y-8">
 
         {/* HEADER */}
         <div className="text-center">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 via-red-400 to-orange-300 bg-clip-text text-transparent">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
             Customer Master Database
           </h1>
-          <p className="mt-2 text-orange-200/70">Manage your client records</p>
+          <p className="mt-2 text-orange-200/70">
+            Login is created automatically using email
+          </p>
         </div>
 
         {/* CONTROLS */}
@@ -200,7 +203,7 @@ export default function CustomerMaster() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search customers…"
-              className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 text-white"
+              className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30"
             />
           </div>
 
@@ -214,7 +217,7 @@ export default function CustomerMaster() {
 
             <button
               onClick={startAdd}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold flex items-center gap-2"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex items-center gap-2"
             >
               <Plus className="w-5 h-5" /> Add Customer
             </button>
@@ -222,170 +225,109 @@ export default function CustomerMaster() {
         </div>
 
         {/* TABLE */}
-        <div className="rounded-2xl border-2 border-orange-500/30 bg-gray-800/50 shadow-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-black/50 text-orange-200">
-                <tr>
-                  <th className="px-6 py-4 text-left font-semibold">Company</th>
-                  <th className="px-6 py-4 text-left">Address</th>
-                  <th className="px-6 py-4 text-left">Contact</th>
-                  <th className="px-6 py-4 text-left">Phone</th>
-                  <th className="px-6 py-4 text-left">Email</th>
-                  <th className="px-6 py-4 text-left">Actions</th>
-                </tr>
-              </thead>
+        <div className="rounded-2xl border border-orange-500/30 bg-gray-800/50 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-black/50 text-orange-200">
+              <tr>
+                <th className="px-6 py-4 text-left">Company</th>
+                <th className="px-6 py-4">Address</th>
+                <th className="px-6 py-4">Contact Person</th>
+                <th className="px-6 py-4">Phone</th>
+                <th className="px-6 py-4">Email</th>
+                <th className="px-6 py-4">Actions</th>
+              </tr>
+            </thead>
 
-              <tbody className="divide-y divide-orange-500/10">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="text-center py-16 text-orange-300/70 text-lg"
-                    >
-                      {loading ? "" : "No customers found"}
+            <tbody className="divide-y divide-orange-500/10">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-orange-300/70">
+                    {loading ? "Loading…" : "No customers found"}
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((r) => (
+                  <tr key={r.customer_id} className="hover:bg-orange-500/5">
+                    <td className="px-6 py-4 font-semibold">{r.company_name}</td>
+                    <td className="px-6 py-4">{r.address || "-"}</td>
+                    <td className="px-6 py-4">{r.contact_person || "-"}</td>
+                    <td className="px-6 py-4">{r.phone || "-"}</td>
+                    <td className="px-6 py-4 text-orange-300">{r.email}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => startEdit(r)}
+                          className="p-2 rounded-lg bg-orange-500/20"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => askDelete(r.customer_id)}
+                          className="p-2 rounded-lg bg-red-500/20"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  filtered.map((r) => (
-                    <tr
-                      key={r.customer_id}
-                      className="hover:bg-orange-500/5 transition"
-                    >
-                      <td className="px-6 py-4 font-semibold text-orange-100">
-                        {r.company_name}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        {r.address || "-"}
-                      </td>
-                      <td className="px-6 py-4">
-                        {r.contact_person || "-"}
-                      </td>
-                      <td className="px-6 py-4">{r.phone || "-"}</td>
-                      <td className="px-6 py-4 text-orange-300 font-medium">
-                        {r.email || "-"}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => startEdit(r)}
-                            className="p-2.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/40 text-orange-200"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => askDelete(r.customer_id)}
-                            className="p-2.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-200"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {/* EDIT MODAL */}
+        {/* MODALS */}
         {editing && (
           <Modal
             title={editing.customer_id ? "Edit Customer" : "Add Customer"}
             onClose={cancelEdit}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <Input
-                label="Company Name *"
-                value={editing.company_name}
-                onChange={(v) =>
-                  setEditing({ ...editing, company_name: v })
-                }
-              />
-              <Input
-                label="Address"
-                value={editing.address}
-                onChange={(v) => setEditing({ ...editing, address: v })}
-              />
-              <Input
-                label="Contact Person"
-                value={editing.contact_person}
-                onChange={(v) =>
-                  setEditing({ ...editing, contact_person: v })
-                }
-              />
-              <Input
-                label="Phone"
-                value={editing.phone}
-                onChange={(v) => setEditing({ ...editing, phone: v })}
-              />
+              <Input label="Company Name *" value={editing.company_name}
+                onChange={(v) => setEditing({ ...editing, company_name: v })} />
+              <Input label="Address" value={editing.address}
+                onChange={(v) => setEditing({ ...editing, address: v })} />
+              <Input label="Contact Person" value={editing.contact_person}
+                onChange={(v) => setEditing({ ...editing, contact_person: v })} />
+              <Input label="Phone" value={editing.phone}
+                onChange={(v) => setEditing({ ...editing, phone: v })} />
 
               {!editing.customer_id && (
-                <>
-                  <Input
-                    label="Email *"
-                    type="email"
-                    value={editing.email}
-                    onChange={(v) =>
-                      setEditing({ ...editing, email: v })
-                    }
-                  />
-                  <Input
-                    label="Password *"
-                    type="password"
-                    value={editing.password}
-                    onChange={(v) =>
-                      setEditing({ ...editing, password: v })
-                    }
-                  />
-                  <Input
-                    label="Contact Name"
-                    value={editing.name}
-                    onChange={(v) =>
-                      setEditing({ ...editing, name: v })
-                    }
-                  />
-                </>
+                <Input label="Email *" type="email" value={editing.email}
+                  onChange={(v) => setEditing({ ...editing, email: v })} />
               )}
             </div>
 
-            <div className="flex justify-end gap-3 mt-8">
-              <button
-                onClick={cancelEdit}
-                className="px-6 py-3 rounded-xl border border-orange-500/30 text-orange-200 hover:bg-orange-500/10"
-              >
+            <p className="mt-4 text-xs text-orange-300/70">
+              Login is created automatically using email with a default password.
+            </p>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={cancelEdit}
+                className="px-5 py-2 border border-orange-500/30 rounded-xl">
                 Cancel
               </button>
-              <button
-                onClick={saveEdit}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold"
-              >
+              <button onClick={saveEdit}
+                className="px-6 py-2 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl font-bold">
                 Save
               </button>
             </div>
           </Modal>
         )}
 
-        {/* DELETE MODAL */}
         {confirmId && (
           <Modal title="Delete Customer?" onClose={() => setConfirmId(null)}>
-            <p className="text-orange-200 mb-6">
-              This action will permanently remove the customer.
+            <p className="mb-6 text-orange-200">
+              This will permanently remove the customer and login.
             </p>
             <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmId(null)}
-                className="px-6 py-3 rounded-xl border border-orange-500/30 text-orange-200 hover:bg-orange-500/10"
-              >
+              <button onClick={() => setConfirmId(null)}
+                className="px-5 py-2 border border-orange-500/30 rounded-xl">
                 Cancel
               </button>
-              <button
-                onClick={doDelete}
-                className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold"
-              >
-                Delete Forever
+              <button onClick={doDelete}
+                className="px-6 py-2 bg-red-600 rounded-xl font-bold">
+                Delete
               </button>
             </div>
           </Modal>
@@ -395,41 +337,31 @@ export default function CustomerMaster() {
   );
 }
 
-// MODAL COMPONENT
+/* ================= SHARED ================= */
 function Modal({ title, children, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/80" onClick={onClose} />
-
-      <div className="relative w-full max-w-4xl mx-4 bg-gradient-to-br from-gray-900 to-black rounded-2xl border-2 border-orange-500/40 shadow-2xl p-8">
-        <div className="flex justify-between items-center mb-6">
+      <div className="relative w-full max-w-4xl mx-4 bg-gray-900 rounded-2xl border border-orange-500/40 p-8">
+        <div className="flex justify-between mb-6">
           <h2 className="text-2xl font-bold text-orange-300">{title}</h2>
-
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-red-500/20 rounded-lg text-gray-400 hover:text-red-400"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <button onClick={onClose}><X /></button>
         </div>
-
         {children}
       </div>
     </div>
   );
 }
 
-// INPUT COMPONENT
-function Input({ label, value = "", onChange, type = "text" }) {
+function Input({ label, value, onChange, type = "text" }) {
   return (
     <label className="block">
-      <span className="text-sm font-medium text-orange-300">{label}</span>
+      <span className="text-sm text-orange-300">{label}</span>
       <input
         type={type}
-        value={value}
+        value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full px-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 text-white"
-        placeholder={label}
+        className="mt-2 w-full px-4 py-3 rounded-xl bg-black/40 border border-orange-500/30"
       />
     </label>
   );

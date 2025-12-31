@@ -1,4 +1,4 @@
-// src/components/VehicleTypeMaster.jsx
+// src/components/masters/VehicleTypeMaster.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Plus,
@@ -26,16 +26,19 @@ export default function VehicleTypeMaster() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Fetch vehicle types
   const fetchTypes = async () => {
     setLoading(true);
     setError("");
     const headers = getAuthHeaders();
+
     if (!headers.Authorization) {
-      setError("Not logged in. Redirecting...");
-      setTimeout(() => (window.location.href = "/login"), 1500);
+      setError("Not logged in. Redirecting to login...");
+      setTimeout(() => (window.location.href = "/login"), 2000);
+      setLoading(false);
       return;
     }
 
@@ -44,8 +47,13 @@ export default function VehicleTypeMaster() {
       console.log("VEHICLE TYPES LOADED:", data);
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
-      const msg = e.response?.data?.error || e.message;
-      setError(msg.includes("Unauthorized") ? "Session expired!" : msg);
+      const msg = e.response?.data?.error || e.message || "Failed to load vehicle types";
+      setError(
+        msg.includes("Unauthorized") || e.response?.status === 401
+          ? "Session expired! Redirecting..."
+          : msg
+      );
+
       if (e.response?.status === 401) {
         localStorage.removeItem("user");
         setTimeout(() => (window.location.href = "/login"), 2000);
@@ -55,6 +63,7 @@ export default function VehicleTypeMaster() {
     }
   };
 
+  // Fetch categories
   const fetchCategories = async () => {
     try {
       const { data } = await axios.get(CATEGORY_API, {
@@ -71,75 +80,69 @@ export default function VehicleTypeMaster() {
     fetchCategories();
   }, []);
 
+  // Search filter
   const filtered = useMemo(() => {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
     return rows.filter((r) =>
-      `${r.make} ${r.model} ${r.category_name || ""} ${r.vehicle_capacity} ${
-        r.architecture_diagram
-      } `
+      `${r.make} ${r.model} ${r.category_name || ""} ${r.capacity_tonne || ""} ${r.architecture_diagram || ""}`
         .toLowerCase()
         .includes(q)
     );
   }, [rows, query]);
 
+  // CRUD Handlers
   const startAdd = () =>
     setEditing({
       make: "",
       model: "",
-      vehicle_capacity: "",
+      capacity_tonne: "",
       category_id: "",
       architecture_diagram: "",
       drawings_folder_url: "",
     });
 
-  const startEdit = (r) => setEditing({ ...r });
+  const startEdit = (row) => setEditing({ ...row });
   const cancelEdit = () => setEditing(null);
 
   const saveEdit = async () => {
-    if (!editing.make?.trim()) return alert("Make required!");
-    if (!editing.model?.trim()) return alert("Model required!");
-    if (!editing.category_id) return alert("Vehicle Category required!");
+    if (!editing.make?.trim()) return alert("Make is required!");
+    if (!editing.model?.trim()) return alert("Model is required!");
+    if (!editing.category_id) return alert("Vehicle Category is required!");
+
+    const payload = {
+      make: editing.make.trim(),
+      model: editing.model.trim(),
+      capacity_tonne: editing.capacity_tonne?.trim() || null,
+      category_id: Number(editing.category_id),
+      architecture_diagram: editing.architecture_diagram?.trim() || null,
+      drawings_folder_url: editing.drawings_folder_url?.trim() || null,
+    };
 
     try {
-      const payload = {
-        make: editing.make.trim(),
-        model: editing.model.trim(),
-        vehicle_capacity: editing.vehicle_capacity?.trim() || null,
-        category_id: Number(editing.category_id),
-        architecture_diagram: editing.architecture_diagram || null,
-        drawings_folder_url: editing.drawings_folder_url || null,
-      };
-
       if (!editing.vtype_id) {
         // CREATE
         const { data } = await axios.post(API_BASE, payload, {
           headers: getAuthHeaders(),
         });
-        setRows((prev) => [
-          {
-            ...payload,
-            vtype_id: data.vtype_id,
-            category_name: categories.find(
-              (c) => c.category_id === payload.category_id
-            )?.category_name,
-          },
-          ...prev,
-        ]);
+        const newRow = {
+          ...payload,
+          vtype_id: data.vtype_id,
+          category_name: categories.find((c) => c.category_id === payload.category_id)?.category_name || "",
+        };
+        setRows((prev) => [newRow, ...prev]);
       } else {
         // UPDATE
         await axios.put(`${API_BASE}/${editing.vtype_id}`, payload, {
           headers: getAuthHeaders(),
         });
-        setRows((prev) =>
+        setRows((  prev) =>
           prev.map((r) =>
             r.vtype_id === editing.vtype_id
               ? {
                   ...r,
                   ...payload,
-                  category_name: categories.find(
-                    (c) => c.category_id === payload.category_id
-                  )?.category_name,
+                  category_name: categories.find((c) => c.category_id === payload.category_id)?.category_name || r.category_name,
                 }
               : r
           )
@@ -147,11 +150,12 @@ export default function VehicleTypeMaster() {
       }
       setEditing(null);
     } catch (e) {
-      alert(e.response?.data?.error || "Save failed");
+      alert(e.response?.data?.error || "Failed to save vehicle type");
     }
   };
 
   const askDelete = (id) => setConfirmId(id);
+
   const doDelete = async () => {
     try {
       await axios.delete(`${API_BASE}/${confirmId}`, {
@@ -159,239 +163,238 @@ export default function VehicleTypeMaster() {
       });
       setRows((prev) => prev.filter((r) => r.vtype_id !== confirmId));
     } catch (e) {
-      alert(e.response?.data?.error || "Cannot delete: used in vehicles");
+      alert(e.response?.data?.error || "Cannot delete: This type is in use");
     } finally {
       setConfirmId(null);
     }
   };
 
+  // Export to CSV
   const exportCsv = () => {
-    const headers = "Make,Model,Category,Capacity,Architecture,Drawings URL\n";
+    const headers = "Make,Model,Category,Capacity (tonne),Architecture,Drawings URL\n";
     const csv = rows
       .map((r) =>
         [
           r.make,
           r.model,
           r.category_name || "",
-          r.vehicle_capacity || "",
+          r.capacity_tonne || "",
           r.architecture_diagram || "",
           r.drawings_folder_url || "",
         ]
-          .map((v) => `"${v}"`)
+          .map((v) => `"${(v || "").toString().replace(/"/g, '""')}"`)
           .join(",")
       )
       .join("\n");
 
-    const blob = new Blob([headers + csv], { type: "text/csv" });
+    const blob = new Blob([headers + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = "vehicle_types.csv";
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black overflow-x-hidden text-white">
+    <div className="relative min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white overflow-x-hidden">
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-10 space-y-8">
+        {/* Header */}
         <div className="text-center">
           <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
             Vehicle Type Master
           </h1>
-          <p className="text-orange-300">Configure EV models & specs</p>
+          <p className="mt-2 text-orange-300">Manage electric vehicle models and specifications</p>
         </div>
 
-        <div className="flex flex-wrap gap-4">
+        {/* Toolbar */}
+        <div className="flex flex-wrap gap-4 items-center">
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-400" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search types..."
-                className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition"
+                placeholder="Search vehicle types..."
+                className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition"
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button
               onClick={exportCsv}
-              className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 hover:bg-gray-700 flex items-center gap-2"
+              className="px-5 py-3 rounded-xl bg-gray-800 border border-orange-500/30 hover:bg-gray-700 flex items-center gap-2 transition"
             >
-              <Download className="w-4 h-4" /> Export
+              <Download className="w-4 h-4" /> Export CSV
             </button>
             <button
               onClick={startAdd}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex items-center gap-2"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex items-center gap-2 hover:opacity-90 transition"
             >
               <Plus className="w-5 h-5" /> Add Type
             </button>
           </div>
         </div>
 
+        {/* Loading & Error States */}
         {loading && (
-          <div className="text-center py-8">Loading vehicle types...</div>
+          <div className="text-center py-12 text-orange-300">
+            Loading vehicle types...
+          </div>
         )}
-        {error && (
-          <div className="p-4 bg-red-900/50 border border-red-500 rounded-xl flex items-center gap-3">
-            <AlertCircle className="w-5 h-5" />
+
+        {error && !loading && (
+          <div className="p-5 bg-red-900/50 border border-red-500 rounded-xl flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Scrollable Table */}
-        <div className="bg-gray-800/50 rounded-2xl border border-orange-500/30 overflow-hidden">
-          <div className="max-h-[400px] overflow-y-auto">
-            <table className="w-full">
-              <thead className="bg-black/50 sticky top-0">
-                <tr>
-                  {[
-                    "Make",
-                    "Model",
-                    "Category",
-                    "Capacity",
-                    "Architecture",
-                    "Drawings",
-                    "Actions",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-6 py-4 text-left text-orange-200 font-semibold"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
+        {/* Table */}
+        {!loading && (
+          <div className="bg-gray-800/50 rounded-2xl border border-orange-500/30 overflow-hidden">
+            <div className="max-h-[500px] overflow-y-auto">
+              <table className="w-full">
+                <thead className="bg-black/60 sticky top-0 z-10">
                   <tr>
-                    <td
-                      colSpan={7}
-                      className="text-center py-16 text-orange-400"
-                    >
-                      No vehicle types
-                    </td>
+                    {["Make", "Model", "Category", "Capacity (tonne)", "Architecture", "Drawings", "Actions"].map((h) => (
+                      <th key={h} className="px-6 py-4 text-left text-orange-200 font-semibold">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ) : (
-                  filtered.map((r) => (
-                    <tr
-                      key={r.vtype_id}
-                      className="border-t border-orange-500/10 hover:bg-orange-500/5"
-                    >
-                      <td className="px-6 py-4 font-bold">{r.make}</td>
-                      <td className="px-6 py-4">{r.model}</td>
-                      <td className="px-6 py-4">{r.category_name || "-"}</td>
-                      <td className="px-6 py-4">{r.vehicle_capacity || "-"}</td>
-                      <td className="px-6 py-4 text-sm">
-                        {r.architecture_diagram || "-"}
-                      </td>
-                      <td className="px-6 py-4">
-                        {r.drawings_folder_url ? (
-                          <a
-                            href={r.drawings_folder_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-orange-300 flex items-center gap-1"
-                          >
-                            <Link2 className="w-4 h-4" /> Open
-                          </a>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => startEdit(r)}
-                          className="p-2 hover:bg-orange-500/20 rounded"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => askDelete(r.vtype_id)}
-                          className="p-2 hover:bg-red-500/20 rounded ml-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-20 text-gray-400 text-lg">
+                        {query ? "No matching vehicle types found" : "No vehicle types added yet"}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filtered.map((r) => (
+                      <tr
+                        key={r.vtype_id}
+                        className="border-t border-orange-500/10 hover:bg-orange-500/5 transition"
+                      >
+                        <td className="px-6 py-4 font-bold text-orange-100">{r.make}</td>
+                        <td className="px-6 py-4">{r.model}</td>
+                        <td className="px-6 py-4">{r.category_name || "-"}</td>
+                        <td className="px-6 py-4">{r.capacity_tonne || "-"}</td>
+                        <td className="px-6 py-4 text-sm text-gray-300">
+                          {r.architecture_diagram || "-"}
+                        </td>
+                        <td className="px-6 py-4">
+                          {r.drawings_folder_url ? (
+                            <a
+                              href={r.drawings_folder_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-orange-300 hover:text-orange-100 flex items-center gap-1 transition"
+                            >
+                              <Link2 className="w-4 h-4" /> Open
+                            </a>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => startEdit(r)}
+                              className="p-2 hover:bg-orange-500/20 rounded transition"
+                              title="Edit"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => askDelete(r.vtype_id)}
+                              className="p-2 hover:bg-red-500/20 rounded transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Edit Modal */}
+        {/* Edit / Add Modal */}
         {editing && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-            <div className="bg-gray-900 p-6 rounded-2xl border-2 border-orange-500 w-full max-w-xl max-h-[80vh] overflow-y-auto mt-20">
-              <h2 className="text-2xl font-bold text-orange-300 mb-6">
-                {editing.vtype_id ? "Edit" : "Add"} Vehicle Type
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 p-8 rounded-2xl border-2 border-orange-500 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-3xl font-bold text-orange-300 mb-8">
+                {editing.vtype_id ? "Edit" : "Add New"} Vehicle Type
               </h2>
-              <div className="grid grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
                   label="Make *"
-                  value={editing.make}
+                  value={editing.make || ""}
                   onChange={(v) => setEditing({ ...editing, make: v })}
+                  placeholder="e.g. Tata"
                 />
                 <Input
                   label="Model *"
-                  value={editing.model}
+                  value={editing.model || ""}
                   onChange={(v) => setEditing({ ...editing, model: v })}
+                  placeholder="e.g. Ace EV"
                 />
-                <label className="block col-span-2">
-                  <span className="text-orange-300 text-sm">
-                    Vehicle Category *
-                  </span>
-                  <select
-                    value={editing.category_id || ""}
-                    onChange={(e) =>
-                      setEditing({ ...editing, category_id: e.target.value })
-                    }
-                    className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-white"
-                  >
-                    <option value="">Select category</option>
-                    {categories.map((c) => (
-                      <option key={c.category_id} value={c.category_id}>
-                        {c.category_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="md:col-span-2">
+                  <label className="block">
+                    <span className="text-orange-300 text-sm font-medium">Vehicle Category *</span>
+                    <select
+                      value={editing.category_id || ""}
+                      onChange={(e) => setEditing({ ...editing, category_id: e.target.value })}
+                      className="mt-2 w-full px-4 py-3 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-white"
+                    >
+                      <option value="">Select a category</option>
+                      {categories.map((c) => (
+                        <option key={c.category_id} value={c.category_id}>
+                          {c.category_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 <Input
-                  label="Vehicle Capacity"
-                  value={editing.vehicle_capacity}
-                  onChange={(v) =>
-                    setEditing({ ...editing, vehicle_capacity: v })
-                  }
+                  label="Capacity (tonne)"
+                  value={editing.capacity_tonne || ""}
+                  onChange={(v) => setEditing({ ...editing, capacity_tonne: v })}
+                  placeholder="e.g. 175.00"
                 />
                 <Input
                   label="Architecture Diagram"
-                  value={editing.architecture_diagram}
-                  onChange={(v) =>
-                    setEditing({ ...editing, architecture_diagram: v })
-                  }
+                  value={editing.architecture_diagram || ""}
+                  onChange={(v) => setEditing({ ...editing, architecture_diagram: v })}
+                  placeholder="e.g. https://example.com/diagram.png"
                 />
                 <Input
-                  label="Drawings URL"
-                  value={editing.drawings_folder_url}
-                  onChange={(v) =>
-                    setEditing({ ...editing, drawings_folder_url: v })
-                  }
+                  label="Drawings Folder URL"
+                  value={editing.drawings_folder_url || ""}
+                  onChange={(v) => setEditing({ ...editing, drawings_folder_url: v })}
+                  placeholder="https://drive.google.com/..."
                 />
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+
+              <div className="flex justify-end gap-4 mt-10">
                 <button
                   onClick={cancelEdit}
-                  className="px-6 py-3 rounded-xl border border-orange-500/30 hover:bg-orange-500/10"
+                  className="px-8 py-3 rounded-xl border border-orange-500/50 hover:bg-orange-500/10 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveEdit}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold"
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold hover:opacity-90 transition"
                 >
-                  Save
+                  {editing.vtype_id ? "Update" : "Create"}
                 </button>
               </div>
             </div>
@@ -400,21 +403,24 @@ export default function VehicleTypeMaster() {
 
         {/* Delete Confirmation Modal */}
         {confirmId && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-            <div className="bg-gray-900 p-8 rounded-2xl border-2 border-red-500">
-              <p className="text-xl mb-6">Delete this vehicle type?</p>
-              <div className="flex justify-end gap-3">
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 p-8 rounded-2xl border-2 border-red-500 max-w-md w-full">
+              <h3 className="text-2xl font-bold text-red-400 mb-4">Confirm Delete</h3>
+              <p className="text-gray-300 mb-8">
+                Are you sure you want to delete this vehicle type? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-4">
                 <button
                   onClick={() => setConfirmId(null)}
-                  className="px-6 py-3 rounded-xl border border-orange-500/30"
+                  className="px-6 py-3 rounded-xl border border-orange-500/50 hover:bg-gray-800 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={doDelete}
-                  className="px-6 py-3 rounded-xl bg-red-600 font-bold"
+                  className="px-6 py-3 rounded-xl bg-red-600 font-bold hover:bg-red-700 transition"
                 >
-                  Delete
+                  Delete Permanently
                 </button>
               </div>
             </div>
@@ -425,29 +431,16 @@ export default function VehicleTypeMaster() {
   );
 }
 
+// Reusable Input Component
 function Input({ label, value = "", onChange, ...props }) {
   return (
     <label className="block">
-      <span className="text-orange-300 text-sm">{label}</span>
+      <span className="text-orange-300 text-sm font-medium">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-white"
+        className="mt-2 w-full px-4 py-3 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-500 transition"
         {...props}
-      />
-    </label>
-  );
-}
-
-function TextArea({ label, value = "", onChange }) {
-  return (
-    <label className="block col-span-2">
-      <span className="text-orange-300 text-sm">{label}</span>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-white"
       />
     </label>
   );
