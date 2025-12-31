@@ -77,7 +77,7 @@ export default function LoginModal({ onClose, onAuth }) {
       // Navigate based on role
       // inside LoginModal handleLogin, after successful login:
       const isAdmin = user.role === "admin";
-      const target = isAdmin ? "/admin/splash" : "/dashboard";
+      const target = isAdmin ? "/admin/splash" : "/customer/splash";
 
       navigate(target, {
         replace: true,

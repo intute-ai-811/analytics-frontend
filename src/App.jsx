@@ -19,6 +19,7 @@ import FooterFixed from "./components/FooterFixed";
 import AdminDashboard from "./components/AdminDashboard";
 import CustomerDashboard from "./components/CustomerDashboard";
 import AdminSplash from "./components/AdminSplash";
+import CustomerSplash from "./components/CustomerSplash";
 
 // Other Components
 import VehicleDetails from "./components/VehicleDetails";
@@ -55,7 +56,8 @@ function App() {
 
       if (isLoginPage) {
         // ✅ Send admins to splash instead of directly to /admin
-        const redirectTo = user.role === "admin" ? "/admin/splash" : "/dashboard";
+        const redirectTo =
+          user.role === "admin" ? "/admin/splash" : "/customer/splash";
         navigate(redirectTo, { replace: true });
       }
     } else {
@@ -74,7 +76,7 @@ function App() {
     setShowLogin(false);
 
     // ✅ After login, admins go to splash first
-    const redirectTo = role === "admin" ? "/admin/splash" : "/dashboard";
+    const redirectTo = role === "admin" ? "/admin/splash" : "/customer/splash";
     navigate(redirectTo, { replace: true });
   };
 
@@ -132,6 +134,16 @@ function App() {
           element={
             user && user.role === "admin" ? (
               <AdminSplash />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/customer/splash"
+          element={
+            user && user.role === "customer" ? (
+              <CustomerSplash />
             ) : (
               <Navigate to="/" replace />
             )

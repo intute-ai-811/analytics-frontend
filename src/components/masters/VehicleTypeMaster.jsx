@@ -75,7 +75,9 @@ export default function VehicleTypeMaster() {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
     return rows.filter((r) =>
-      `${r.make} ${r.model} ${r.capacity_kwh} ${r.motor_specs} ${r.architecture_diagram} ${r.category_name || ""}`
+      `${r.make} ${r.model} ${r.category_name || ""} ${r.vehicle_capacity} ${
+        r.architecture_diagram
+      } `
         .toLowerCase()
         .includes(q)
     );
@@ -85,8 +87,7 @@ export default function VehicleTypeMaster() {
     setEditing({
       make: "",
       model: "",
-      capacity_kwh: "",
-      motor_specs: "",
+      vehicle_capacity: "",
       category_id: "",
       architecture_diagram: "",
       drawings_folder_url: "",
@@ -104,8 +105,7 @@ export default function VehicleTypeMaster() {
       const payload = {
         make: editing.make.trim(),
         model: editing.model.trim(),
-        capacity_kwh: editing.capacity_kwh ? Number(editing.capacity_kwh) : null,
-        motor_specs: editing.motor_specs || null,
+        vehicle_capacity: editing.vehicle_capacity?.trim() || null,
         category_id: Number(editing.category_id),
         architecture_diagram: editing.architecture_diagram || null,
         drawings_folder_url: editing.drawings_folder_url || null,
@@ -116,7 +116,16 @@ export default function VehicleTypeMaster() {
         const { data } = await axios.post(API_BASE, payload, {
           headers: getAuthHeaders(),
         });
-        setRows((prev) => [{ ...payload, vtype_id: data.vtype_id, category_name: categories.find(c => c.category_id === payload.category_id)?.category_name }, ...prev]);
+        setRows((prev) => [
+          {
+            ...payload,
+            vtype_id: data.vtype_id,
+            category_name: categories.find(
+              (c) => c.category_id === payload.category_id
+            )?.category_name,
+          },
+          ...prev,
+        ]);
       } else {
         // UPDATE
         await axios.put(`${API_BASE}/${editing.vtype_id}`, payload, {
@@ -128,7 +137,9 @@ export default function VehicleTypeMaster() {
               ? {
                   ...r,
                   ...payload,
-                  category_name: categories.find(c => c.category_id === payload.category_id)?.category_name,
+                  category_name: categories.find(
+                    (c) => c.category_id === payload.category_id
+                  )?.category_name,
                 }
               : r
           )
@@ -155,16 +166,14 @@ export default function VehicleTypeMaster() {
   };
 
   const exportCsv = () => {
-    const headers =
-      "Make,Model,Capacity (kWh),Specs,Category,Architecture,Drawings URL\n";
+    const headers = "Make,Model,Category,Capacity,Architecture,Drawings URL\n";
     const csv = rows
       .map((r) =>
         [
           r.make,
           r.model,
-          r.capacity_kwh || "",
-          r.motor_specs || "",
           r.category_name || "",
+          r.vehicle_capacity || "",
           r.architecture_diagram || "",
           r.drawings_folder_url || "",
         ]
@@ -238,9 +247,8 @@ export default function VehicleTypeMaster() {
                   {[
                     "Make",
                     "Model",
-                    "Battery",
-                    "Specs",
                     "Category",
+                    "Capacity",
                     "Architecture",
                     "Drawings",
                     "Actions",
@@ -258,7 +266,7 @@ export default function VehicleTypeMaster() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="text-center py-16 text-orange-400"
                     >
                       No vehicle types
@@ -272,11 +280,8 @@ export default function VehicleTypeMaster() {
                     >
                       <td className="px-6 py-4 font-bold">{r.make}</td>
                       <td className="px-6 py-4">{r.model}</td>
-                      <td className="px-6 py-4">{r.capacity_kwh || "-"} kWh</td>
-                      <td className="px-6 py-4 text-sm">
-                        {r.motor_specs || "-"}
-                      </td>
                       <td className="px-6 py-4">{r.category_name || "-"}</td>
+                      <td className="px-6 py-4">{r.vehicle_capacity || "-"}</td>
                       <td className="px-6 py-4 text-sm">
                         {r.architecture_diagram || "-"}
                       </td>
@@ -334,18 +339,10 @@ export default function VehicleTypeMaster() {
                   value={editing.model}
                   onChange={(v) => setEditing({ ...editing, model: v })}
                 />
-                <Input
-                  label="Battery (kWh)"
-                  value={editing.capacity_kwh}
-                  onChange={(v) => setEditing({ ...editing, capacity_kwh: v })}
-                />
-                <TextArea
-                  label="Motor Specs"
-                  value={editing.motor_specs}
-                  onChange={(v) => setEditing({ ...editing, motor_specs: v })}
-                />
                 <label className="block col-span-2">
-                  <span className="text-orange-300 text-sm">Vehicle Category *</span>
+                  <span className="text-orange-300 text-sm">
+                    Vehicle Category *
+                  </span>
                   <select
                     value={editing.category_id || ""}
                     onChange={(e) =>
@@ -361,6 +358,13 @@ export default function VehicleTypeMaster() {
                     ))}
                   </select>
                 </label>
+                <Input
+                  label="Vehicle Capacity"
+                  value={editing.vehicle_capacity}
+                  onChange={(v) =>
+                    setEditing({ ...editing, vehicle_capacity: v })
+                  }
+                />
                 <Input
                   label="Architecture Diagram"
                   value={editing.architecture_diagram}

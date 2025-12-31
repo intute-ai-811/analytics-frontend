@@ -46,8 +46,11 @@ export default function VehicleMaster() {
     hmi_id: "",
     vcu_make_model: "",
     hmi_make_model: "",
+    motor_unique_id: "",
     motor_make_model: "",
+    controller_unique_id: "",
     controller_make_model: "",
+    battery_unique_id: "",
     battery_make_model: "",
     dc_dc_make_model: "",
     btms_make_model: "",
@@ -122,8 +125,11 @@ export default function VehicleMaster() {
       hmi_id: "",
       vcu_make_model: "",
       hmi_make_model: "",
+      motor_unique_id: "",
       motor_make_model: "",
+      controller_unique_id: "",
       controller_make_model: "",
+      battery_unique_id: "",
       battery_make_model: "",
       dc_dc_make_model: "",
       btms_make_model: "",
@@ -150,8 +156,11 @@ export default function VehicleMaster() {
       hmi_id: r.hmi_id?.toString() || "",
       vcu_make_model: r.vcu_make_model || "",
       hmi_make_model: r.hmi_make_model || "",
+      motor_unique_id: r.motor_unique_id || "",
       motor_make_model: r.motor_make_model || "",
+      controller_unique_id: r.controller_unique_id || "",
       controller_make_model: r.controller_make_model || "",
+      battery_unique_id: r.battery_unique_id || "",
       battery_make_model: r.battery_make_model || "",
       dc_dc_make_model: r.dc_dc_make_model || "",
       btms_make_model: r.btms_make_model || "",
@@ -210,8 +219,11 @@ export default function VehicleMaster() {
       vehicle_reg_no: form.vehicle_reg_no || null,
       vcu_make_model: form.vcu_make_model || null,
       hmi_make_model: form.hmi_make_model || null,
+      motor_unique_id: form.motor_unique_id || null,
       motor_make_model: form.motor_make_model || null,
+      controller_unique_id: form.controller_unique_id || null,
       controller_make_model: form.controller_make_model || null,
+      battery_unique_id: form.battery_unique_id || null,
       battery_make_model: form.battery_make_model || null,
       dc_dc_make_model: form.dc_dc_make_model || null,
       btms_make_model: form.btms_make_model || null,
@@ -265,8 +277,11 @@ export default function VehicleMaster() {
       "HMI ID",
       "VCU Make+Model",
       "HMI Make+Model",
+      "Motor ID",
       "Motor",
+      "Controller ID",
       "Controller",
+      "Battery ID",
       "Battery",
       "DC/DC",
       "BTMS",
@@ -289,8 +304,11 @@ export default function VehicleMaster() {
           r.hmi_id || "",
           r.vcu_make_model || "",
           r.hmi_make_model || "",
+          r.motor_unique_id || "",
           r.motor_make_model || "",
+          r.controller_unique_id || "",
           r.controller_make_model || "",
+          r.battery_unique_id || "",
           r.battery_make_model || "",
           r.dc_dc_make_model || "",
           r.btms_make_model || "",
@@ -377,8 +395,11 @@ export default function VehicleMaster() {
                   "HMI ID",
                   "VCU Make+Model",
                   "HMI Make+Model",
+                  "Motor ID",
                   "Motor",
+                  "Controller ID",
                   "Controller",
+                  "Battery ID",
                   "Battery",
                   "DC/DC",
                   "BTMS",
@@ -423,10 +444,19 @@ export default function VehicleMaster() {
                     {r.hmi_make_model || "-"}
                   </td>
                   <td className="px-4 py-3 text-xs">
+                    {r.motor_unique_id || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
                     {r.motor_make_model || "-"}
                   </td>
                   <td className="px-4 py-3 text-xs">
+                    {r.controller_unique_id || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
                     {r.controller_make_model || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.battery_unique_id || "-"}
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {r.battery_make_model || "-"}
@@ -488,184 +518,211 @@ export default function VehicleMaster() {
 
         {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 overflow-y-auto">
-            <div
-              className="bg-gray-900 p-8 rounded-2xl border-2 border-orange-500 
+          <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto">
+            <div className="min-h-full w-full flex justify-center items-start pt-24 pb-10 px-4">
+              <div
+                className="bg-gray-900 p-8 rounded-2xl border-2 border-orange-500 
   w-full max-w-6xl 
-  max-h-[85vh] overflow-y-auto"
-            >
-              <h2 className="text-2xl font-bold text-orange-300 mb-6">
-                {editing ? "Edit" : "Add"} Vehicle
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                <Input
-                  label="Unique ID *"
-                  value={form.vehicle_unique_id}
-                  disabled
-                />
+  max-h-[85vh] overflow-y-auto space-y-6"
+              >
+                <h2 className="text-2xl font-bold text-orange-300 mb-6">
+                  {editing ? "Edit" : "Add"} Vehicle
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                  <Input
+                    label="Unique ID *"
+                    value={form.vehicle_unique_id}
+                    disabled
+                  />
 
-                <Input
-                  label="Reg No./VIN *"
-                  value={form.vehicle_reg_no}
-                  onChange={(v) => setForm({ ...form, vehicle_reg_no: v })}
-                />
+                  <Input
+                    label="Reg No./VIN *"
+                    value={form.vehicle_reg_no}
+                    onChange={(v) => setForm({ ...form, vehicle_reg_no: v })}
+                  />
 
-                <Select
-                  label="Customer *"
-                  value={form.customer_id}
-                  onChange={(v) => setForm({ ...form, customer_id: v })}
-                  options={customers.map((c) => ({
-                    value: c.customer_id,
-                    label: c.company_name,
-                  }))}
-                  placeholder="Select customer"
-                />
+                  <Select
+                    label="Customer *"
+                    value={form.customer_id}
+                    onChange={(v) => setForm({ ...form, customer_id: v })}
+                    options={customers.map((c) => ({
+                      value: c.customer_id,
+                      label: c.company_name,
+                    }))}
+                    placeholder="Select customer"
+                  />
 
-                <Select
-                  label="Vehicle Type *"
-                  value={form.vtype_id}
-                  onChange={(v) => setForm({ ...form, vtype_id: v })}
-                  options={vehicleTypes.map((vt) => ({
-                    value: vt.vtype_id,
-                    label: `${vt.make} ${vt.model}`,
-                  }))}
-                  placeholder="Select vehicle type"
-                />
+                  <Select
+                    label="Vehicle Type *"
+                    value={form.vtype_id}
+                    onChange={(v) => setForm({ ...form, vtype_id: v })}
+                    options={vehicleTypes.map((vt) => ({
+                      value: vt.vtype_id,
+                      label: `${vt.make} ${vt.model}`,
+                    }))}
+                    placeholder="Select vehicle type"
+                  />
 
-                <Select
-                  label="VCU"
-                  value={form.vcu_id}
-                  onChange={(v) => setForm({ ...form, vcu_id: v })}
-                  options={vcus.map((v) => ({
-                    value: v.vcu_id,
-                    label:
-                      `${v.vcu_make} ${v.vcu_model}`.trim() ||
-                      `VCU ID: ${v.vcu_id}`,
-                  }))}
-                  placeholder="Select VCU (optional)"
-                />
+                  <Select
+                    label="VCU"
+                    value={form.vcu_id}
+                    onChange={(v) => setForm({ ...form, vcu_id: v })}
+                    options={vcus.map((v) => ({
+                      value: v.vcu_id,
+                      label:
+                        `${v.vcu_make} ${v.vcu_model}`.trim() ||
+                        `VCU ID: ${v.vcu_id}`,
+                    }))}
+                    placeholder="Select VCU (optional)"
+                  />
 
-                <Input
-                  label="VCU Make+Model (Snapshot)"
-                  value={form.vcu_make_model}
-                  onChange={(v) => setForm({ ...form, vcu_make_model: v })}
-                  disabled={!!editing}
-                />
+                  <Input
+                    label="VCU Make+Model (Snapshot)"
+                    value={form.vcu_make_model}
+                    onChange={(v) => setForm({ ...form, vcu_make_model: v })}
+                    disabled={!!editing}
+                  />
 
-                <Select
-                  label="HMI"
-                  value={form.hmi_id}
-                  onChange={(v) => setForm({ ...form, hmi_id: v })}
-                  options={hmis.map((h) => ({
-                    value: h.hmi_id,
-                    label:
-                      `${h.hmi_make} ${h.hmi_model}`.trim() ||
-                      `HMI ID: ${h.hmi_id}`,
-                  }))}
-                  placeholder="Select HMI (optional)"
-                />
+                  <Select
+                    label="HMI"
+                    value={form.hmi_id}
+                    onChange={(v) => setForm({ ...form, hmi_id: v })}
+                    options={hmis.map((h) => ({
+                      value: h.hmi_id,
+                      label:
+                        `${h.hmi_make} ${h.hmi_model}`.trim() ||
+                        `HMI ID: ${h.hmi_id}`,
+                    }))}
+                    placeholder="Select HMI (optional)"
+                  />
 
-                <Input
-                  label="HMI Make+Model (Snapshot)"
-                  value={form.hmi_make_model}
-                  onChange={(v) => setForm({ ...form, hmi_make_model: v })}
-                  disabled={!!editing}
-                />
+                  <Input
+                    label="HMI Make+Model (Snapshot)"
+                    value={form.hmi_make_model}
+                    onChange={(v) => setForm({ ...form, hmi_make_model: v })}
+                    disabled={!!editing}
+                  />
+                  <Input
+                    label="Motor Unique ID"
+                    value={form.motor_unique_id}
+                    onChange={(v) => setForm({ ...form, motor_unique_id: v })}
+                  />
 
-                <Input
-                  label="Motor Make+Model"
-                  value={form.motor_make_model}
-                  onChange={(v) => setForm({ ...form, motor_make_model: v })}
-                />
-                <Input
-                  label="Controller Make+Model"
-                  value={form.controller_make_model}
-                  onChange={(v) =>
-                    setForm({ ...form, controller_make_model: v })
-                  }
-                />
-                <Input
-                  label="Battery Make+Model"
-                  value={form.battery_make_model}
-                  onChange={(v) => setForm({ ...form, battery_make_model: v })}
-                />
-                <Input
-                  label="DC/DC Converter"
-                  value={form.dc_dc_make_model}
-                  onChange={(v) => setForm({ ...form, dc_dc_make_model: v })}
-                />
-                <Input
-                  label="BTMS"
-                  value={form.btms_make_model}
-                  onChange={(v) => setForm({ ...form, btms_make_model: v })}
-                />
-
-                <YesNoSelect
-                  label="Hydraulic Cooling"
-                  value={form.hyd_cooling_yesno}
-                  onChange={(v) => setForm({ ...form, hyd_cooling_yesno: v })}
-                />
-                {form.hyd_cooling_yesno === "Yes" && (
-                  <TextArea
-                    label="Hydraulic Cooling Details"
-                    value={form.motor_controller_details}
+                  <Input
+                    label="Motor Make+Model"
+                    value={form.motor_make_model}
+                    onChange={(v) => setForm({ ...form, motor_make_model: v })}
+                  />
+                  <Input
+                    label="Controller Unique ID"
+                    value={form.controller_unique_id}
                     onChange={(v) =>
-                      setForm({ ...form, motor_controller_details: v })
+                      setForm({ ...form, controller_unique_id: v })
                     }
                   />
-                )}
 
-                <YesNoSelect
-                  label="Compressor"
-                  value={form.compressor_yesno}
-                  onChange={(v) => setForm({ ...form, compressor_yesno: v })}
-                />
-                {form.compressor_yesno === "Yes" && (
-                  <TextArea
-                    label="Compressor Details"
-                    value={form.compressor_details}
+                  <Input
+                    label="Controller Make+Model"
+                    value={form.controller_make_model}
                     onChange={(v) =>
-                      setForm({ ...form, compressor_details: v })
+                      setForm({ ...form, controller_make_model: v })
                     }
                   />
-                )}
+                  <Input
+                    label="Battery Unique ID"
+                    value={form.battery_unique_id}
+                    onChange={(v) => setForm({ ...form, battery_unique_id: v })}
+                  />
 
-                <YesNoSelect
-                  label="Motor Cooling"
-                  value={form.motor_cooling_yesno}
-                  onChange={(v) => setForm({ ...form, motor_cooling_yesno: v })}
-                />
-                {form.motor_cooling_yesno === "Yes" && (
-                  <TextArea
-                    label="Motor Cooling Details"
-                    value={form.motor_cooling_details}
+                  <Input
+                    label="Battery Make+Model"
+                    value={form.battery_make_model}
                     onChange={(v) =>
-                      setForm({ ...form, motor_cooling_details: v })
+                      setForm({ ...form, battery_make_model: v })
                     }
                   />
-                )}
+                  <Input
+                    label="DC/DC Converter"
+                    value={form.dc_dc_make_model}
+                    onChange={(v) => setForm({ ...form, dc_dc_make_model: v })}
+                  />
+                  <Input
+                    label="BTMS"
+                    value={form.btms_make_model}
+                    onChange={(v) => setForm({ ...form, btms_make_model: v })}
+                  />
 
-                <Input
-                  label="Date of Deployment"
-                  type="date"
-                  value={form.date_of_deployment}
-                  onChange={(v) => setForm({ ...form, date_of_deployment: v })}
-                />
-              </div>
+                  <YesNoSelect
+                    label="Hydraulic Cooling"
+                    value={form.hyd_cooling_yesno}
+                    onChange={(v) => setForm({ ...form, hyd_cooling_yesno: v })}
+                  />
+                  {form.hyd_cooling_yesno === "Yes" && (
+                    <TextArea
+                      label="Hydraulic Cooling Details"
+                      value={form.motor_controller_details}
+                      onChange={(v) =>
+                        setForm({ ...form, motor_controller_details: v })
+                      }
+                    />
+                  )}
 
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-6 py-3 rounded-xl border border-orange-500/30 hover:bg-orange-500/10"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveForm}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold"
-                >
-                  Save Vehicle
-                </button>
+                  <YesNoSelect
+                    label="Compressor"
+                    value={form.compressor_yesno}
+                    onChange={(v) => setForm({ ...form, compressor_yesno: v })}
+                  />
+                  {form.compressor_yesno === "Yes" && (
+                    <TextArea
+                      label="Compressor Details"
+                      value={form.compressor_details}
+                      onChange={(v) =>
+                        setForm({ ...form, compressor_details: v })
+                      }
+                    />
+                  )}
+
+                  <YesNoSelect
+                    label="Motor Cooling"
+                    value={form.motor_cooling_yesno}
+                    onChange={(v) =>
+                      setForm({ ...form, motor_cooling_yesno: v })
+                    }
+                  />
+                  {form.motor_cooling_yesno === "Yes" && (
+                    <TextArea
+                      label="Motor Cooling Details"
+                      value={form.motor_cooling_details}
+                      onChange={(v) =>
+                        setForm({ ...form, motor_cooling_details: v })
+                      }
+                    />
+                  )}
+
+                  <Input
+                    label="Date of Deployment"
+                    type="date"
+                    value={form.date_of_deployment}
+                    onChange={(v) =>
+                      setForm({ ...form, date_of_deployment: v })
+                    }
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="px-6 py-3 rounded-xl border border-orange-500/30 hover:bg-orange-500/10"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveForm}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold"
+                  >
+                    Save Vehicle
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -5,8 +5,6 @@ import {
   Search,
   RefreshCcw,
   Loader2,
-  Edit,
-  Trash2,
   AlertCircle,
 } from "lucide-react";
 import axios from "axios";
@@ -24,15 +22,16 @@ const Pill = React.memo(({ children }) => (
 const columns = [
   { key: "index", label: "S.No", width: "w-20", sortable: false },
   { key: "vehicleType", label: "Vehicle Type", width: "w-44", sortable: true },
+  { key: "capacity", label: "Vehicle Capacity", width: "w-28", sortable: false },
   { key: "vehicleNo", label: "Vehicle Number", width: "w-44", sortable: true },
   { key: "customer", label: "Customer Name", width: "w-56", sortable: true },
-  { key: "vcu", label: "VCU Model", width: "w-48", sortable: false },
-  { key: "hmi", label: "HMI Model", width: "w-48", sortable: false },
-  { key: "delivery", label: "Delivery Date", width: "w-40", sortable: false },
+  // { key: "vcu", label: "VCU Model", width: "w-48", sortable: false },
+  // { key: "hmi", label: "HMI Model", width: "w-48", sortable: false },
+  // { key: "delivery", label: "Delivery Date", width: "w-40", sortable: false },
   { key: "totalHours", label: "Total Hours", width: "w-32", sortable: false },
   { key: "totalKwh", label: "Total kWh", width: "w-32", sortable: false },
   { key: "avgKwh", label: "Avg kWh", width: "w-28", sortable: false },
-  { key: "actions", label: "Actions", width: "w-32", sortable: false },
+  { key: "track", label: "Track Location", width: "w-40", sortable: false },
 ];
 
 export default function AdminDashboard() {
@@ -65,23 +64,23 @@ export default function AdminDashboard() {
 
         vehicleType:
           `${row.vehicle_make || ""} ${row.vehicle_model || ""}`.trim() || "—",
-
+        capacity: row.vehicle_capacity || "—",
         vehicleNo: row.vehicle_reg_no || "—",
         customer: row.company_name || "—",
 
-        vcu:
-          row.vcu_make && row.vcu_model
-            ? `${row.vcu_make} ${row.vcu_model}`
-            : "—",
+        // vcu:
+        //   row.vcu_make && row.vcu_model
+        //     ? `${row.vcu_make} ${row.vcu_model}`
+        //     : "—",
 
-        hmi:
-          row.hmi_make && row.hmi_model
-            ? `${row.hmi_make} ${row.hmi_model}`
-            : "—",
+        // hmi:
+        //   row.hmi_make && row.hmi_model
+        //     ? `${row.hmi_make} ${row.hmi_model}`
+        //     : "—",
 
-        delivery: row.date_of_deployment
-          ? new Date(row.date_of_deployment).toLocaleDateString("en-IN")
-          : "—",
+        // delivery: row.date_of_deployment
+        //   ? new Date(row.date_of_deployment).toLocaleDateString("en-IN")
+        //   : "—",
 
         totalHours: 0,
         totalKwh: 0,
@@ -136,7 +135,7 @@ export default function AdminDashboard() {
 
     if (q) {
       data = data.filter((r) =>
-        [r.customer, r.vehicleType, r.vehicleNo, r.vcu, r.hmi].some((v) =>
+        [r.customer, r.vehicleType, r.capacity, r.vehicleNo].some((v) =>
           v?.toLowerCase().includes(q)
         )
       );
@@ -182,43 +181,6 @@ export default function AdminDashboard() {
       })
     );
     navigate(`/vehicle/${row.id}`);
-  };
-
-  /* =========================
-     UPDATE
-  ========================= */
-  const handleUpdate = async (id) => {
-    const reg = prompt("New Registration No:");
-    const date = prompt("New Date (YYYY-MM-DD):");
-
-    const updates = {};
-    if (reg) updates.vehicle_reg_no = reg;
-    if (date) updates.date_of_deployment = date;
-
-    try {
-      await axios.put(`${API_BASE_URL}/vehicle-master/${id}`, updates, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      await fetchData();
-    } catch (e) {
-      setError(e.response?.data?.error || "Update failed");
-    }
-  };
-
-  /* =========================
-     DELETE
-  ========================= */
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete permanently?")) return;
-
-    try {
-      await axios.delete(`${API_BASE_URL}/vehicle-master/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      await fetchData();
-    } catch (e) {
-      setError(e.response?.data?.error || "Delete failed");
-    }
   };
 
   /* =========================
@@ -307,28 +269,25 @@ export default function AdminDashboard() {
                     <td className="px-5 py-4">
                       <Pill>{row.vehicleType}</Pill>
                     </td>
+                    <td className="px-5 py-4 text-sm">{row.capacity}</td>
                     <td className="px-5 py-4">{row.vehicleNo}</td>
                     <td className="px-5 py-4">{row.customer}</td>
-                    <td className="px-5 py-4 text-xs">{row.vcu}</td>
+                    {/* <td className="px-5 py-4 text-xs">{row.vcu}</td>
                     <td className="px-5 py-4 text-xs">{row.hmi}</td>
-                    <td className="px-5 py-4">{row.delivery}</td>
+                    <td className="px-5 py-4">{row.delivery}</td> */}
                     <td className="px-5 py-4">{row.totalHours}</td>
                     <td className="px-5 py-4">{row.totalKwh}</td>
                     <td className="px-5 py-4">{row.avgKwh}</td>
                     <td className="px-5 py-4">
-                      <div
-                        className="flex gap-2"
-                        onClick={(e) => e.stopPropagation()}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/vehicle/${row.id}/track`);
+                        }}
+                        className="px-3 py-1 rounded-lg text-sm bg-orange-500/20 text-orange-300 hover:bg-orange-500/30"
                       >
-                        <Edit
-                          className="w-4 h-4 text-blue-400"
-                          onClick={() => handleUpdate(row.id)}
-                        />
-                        <Trash2
-                          className="w-4 h-4 text-red-400"
-                          onClick={() => handleDelete(row.id)}
-                        />
-                      </div>
+                        Track
+                      </button>
                     </td>
                   </tr>
                 ))}
