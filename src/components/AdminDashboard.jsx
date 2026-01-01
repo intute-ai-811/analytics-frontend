@@ -74,7 +74,7 @@ export default function AdminDashboard() {
 
     try {
       const res = await axios.get(
-        `${API_BASE_URL}/vehicle-master/admin-summary`,
+        `${API_BASE_URL}/api/vehicle-master/admin-summary`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
         {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-5xl font-extrabold bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 bg-clip-text text-transparent">
-            Fleet Operations Dashboard
+            Admin Dashboard
           </h1>
           <p className="mt-3 text-orange-200/70 text-lg">
             Real-time overview of all deployed vehicles
@@ -261,9 +261,6 @@ export default function AdminDashboard() {
             <span className="text-red-200">{error}</span>
           </div>
         )}
-
-        {/* Summary Cards (Optional Future Enhancement) */}
-        {/* You can add fleet stats here later: total vehicles, online count, etc. */}
 
         {/* Table */}
         <div className="rounded-2xl overflow-hidden border border-orange-500/20 bg-gray-800/30 backdrop-blur">
