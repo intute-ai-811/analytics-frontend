@@ -74,7 +74,7 @@ export default function AdminDashboard() {
 
     try {
       const res = await axios.get(
-        `${API_BASE_URL}/api/vehicle-master/admin-summary`,
+        `${API_BASE_URL}/vehicle-master/admin-summary`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
