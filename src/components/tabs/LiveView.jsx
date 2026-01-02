@@ -3,9 +3,15 @@ import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
 /* =========================
-   BACKEND SOCKET URL
+   BACKEND SOCKET URL — FINAL VERSION
+   Works perfectly in local development AND production
+   - Local (localhost): connects directly to backend on port 5000
+   - Production: connects to the same domain (Nginx proxies /socket.io/)
 ========================= */
-const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const SOCKET_URL =
+  window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:5000"
+    : window.location.origin;
 
 export default function LiveView() {
   const { id } = useParams();
