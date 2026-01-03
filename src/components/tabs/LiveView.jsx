@@ -1,11 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { io } from "socket.io-client";
-
-const SOCKET_URL =
-  window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-    ? "http://localhost:5000"
-    : window.location.origin;
 
 const LIVE_THRESHOLD_MS = 15000; // 15 seconds
 
@@ -14,11 +8,9 @@ export default function LiveView() {
   const [live, setLive] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lastUpdateTime, setLastUpdateTime] = useState(null);
-  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState(null); // From vehicle recorded_at
 
-  const lastActivityRef = useRef(null);
-  const socketRef = useRef(null);
+  const eventSourceRef = useRef(null);
 
   useEffect(() => {
     if (!id) {
@@ -34,26 +26,29 @@ export default function LiveView() {
       return;
     }
 
+    // Initial snapshot
     const fetchSnapshot = async () => {
       try {
         const res = await fetch(`/api/vehicles/${id}/live`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(`HTTP ${res.status}: ${text || "Failed to fetch"}`);
+          throw new Error(`Failed: ${res.status} ${text || res.statusText}`);
         }
+
         const data = await res.json();
-        setLive(data);
+        setLive(data); // Complete overwrite
+
         if (data.recorded_at) {
-          const t = new Date(data.recorded_at);
-          setLastUpdateTime(t);
-          lastActivityRef.current = t.getTime();
+          setLastUpdateTime(new Date(data.recorded_at));
         }
+
         setError(null);
       } catch (err) {
-        console.error("REST fetch error:", err);
-        setError(err.message || "Failed to load live data");
+        console.error("Snapshot error:", err);
+        setError("Failed to load initial data");
       } finally {
         setLoading(false);
       }
@@ -61,82 +56,73 @@ export default function LiveView() {
 
     fetchSnapshot();
 
-    // Prevent duplicate socket connections
-    if (socketRef.current) return;
+    // Cleanup previous SSE
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
 
-    const socket = io(SOCKET_URL, {
-      auth: { token },
-      transports: ["websocket"],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    });
+    // SSE Stream
+    const es = new EventSource(`/api/vehicles/${id}/stream?token=${token}`);
+    eventSourceRef.current = es;
 
-    socketRef.current = socket;
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
 
-    socket.on("connect", () => {
-      console.log("WebSocket connected");
-      setIsSocketConnected(true);
-      socket.emit("subscribe_vehicle", { vehicleId: id });
-      fetchSnapshot(); // Ensure fresh data on reconnect
-    });
+        // COMPLETE OVERWRITE — no merging, no stale values
+        setLive(data);
 
-    socket.on("live_update", (data) => {
-      setLive((prev) => ({
-        ...prev,
-        ...data, // Partial merge – preserves existing fields
-      }));
-      if (data.recorded_at) {
-        const t = new Date(data.recorded_at);
-        setLastUpdateTime(t);
-        lastActivityRef.current = Date.now(); // Mark fresh activity
+        if (data.recorded_at) {
+          const newTime = new Date(data.recorded_at);
+          setLastUpdateTime((prev) =>
+            !prev || newTime > prev ? newTime : prev
+          );
+        }
+
+        setError(null);
+      } catch (e) {
+        console.error("Parse error:", e);
       }
-    });
+    };
 
-    socket.on("disconnect", () => {
-      console.warn("WebSocket disconnected");
-      setIsSocketConnected(false);
-    });
+    es.onerror = () => {
+      console.warn("SSE disconnected – will auto-reconnect");
+      setError("Live stream lost – showing last known data");
+    };
 
-    socket.on("connect_error", (err) => {
-      console.error("Socket connection error:", err.message);
-      setIsSocketConnected(false);
-    });
+    es.onopen = () => {
+      console.log("SSE connected");
+      setError(null);
+    };
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
-      setIsSocketConnected(false);
     };
   }, [id]);
 
-  const isActivelyLive =
-    isSocketConnected &&
-    lastActivityRef.current &&
-    Date.now() - lastActivityRef.current < LIVE_THRESHOLD_MS;
+  // Accurate live status: green only if fresh data in last 15s
+  const isActivelyLive = (() => {
+    if (!lastUpdateTime) return false;
+    return Date.now() - lastUpdateTime.getTime() < LIVE_THRESHOLD_MS;
+  })();
 
-  const formatTimestamp = (date) => {
-    if (!date) return "–";
-    return date.toLocaleString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-  };
+  const formatTimestamp = (date) =>
+    date
+      ? date.toLocaleString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        })
+      : "–";
 
-  const Val = ({ v, unit = "", fixed = 2 }) => (
-    <span className="text-orange-300 font-semibold">
-      {v == null ? "–" : `${Number(v).toFixed(fixed)}${unit}`}
-    </span>
-  );
-
+  // "X hr Y mins" format
   const HoursToHrMin = ({ hours }) => {
     if (hours == null || hours === 0) {
       return <span className="text-orange-300 font-semibold">0 hr 0 mins</span>;
@@ -144,13 +130,21 @@ export default function LiveView() {
     const totalMinutes = Math.round(hours * 60);
     const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
+
     if (hrs === 0) return <span className="text-orange-300 font-semibold">{mins} mins</span>;
+
     return (
       <span className="text-orange-300 font-semibold">
         {hrs} hr{mins > 0 ? ` ${mins} mins` : ""}
       </span>
     );
   };
+
+  const Val = ({ v, unit = "", fixed = 2 }) => (
+    <span className="text-orange-300 font-semibold">
+      {v == null ? "–" : `${Number(v).toFixed(fixed)}${unit}`}
+    </span>
+  );
 
   const Section = ({ title, children }) => (
     <div className="bg-gray-900/60 rounded-lg p-5 border border-orange-500/30">
@@ -170,13 +164,13 @@ export default function LiveView() {
     return <div className="text-center py-12 text-orange-200">Loading live data…</div>;
   }
 
-  if (error) {
+  if (error && !Object.keys(live).length) {
     return <div className="text-center py-12 text-red-400">Error: {error}</div>;
   }
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      {/* Elegant Header */}
+      {/* Header */}
       <div className="text-center mb-12">
         <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
           <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent drop-shadow-lg">
@@ -188,14 +182,14 @@ export default function LiveView() {
         </div>
       </div>
 
-      {/* Live Status Indicator */}
+      {/* Live Status */}
       <div className="text-center mb-10 space-y-5">
         <div>
           <span
             className={`inline-block px-10 py-5 rounded-full text-xl font-bold shadow-2xl transition-all duration-500 ${
               isActivelyLive
-                ? "bg-emerald-600/30 text-emerald-300 border-3 border-emerald-500/80 animate-pulse"
-                : "bg-gray-700/40 text-gray-400 border-3 border-gray-600/60"
+                ? "bg-emerald-600/30 text-emerald-300 border-4 border-emerald-500/80 animate-pulse"
+                : "bg-gray-700/40 text-gray-400 border-4 border-gray-600/60"
             }`}
           >
             {isActivelyLive ? "● LIVE (Real-time)" : "○ Last Known Data"}
@@ -207,9 +201,12 @@ export default function LiveView() {
             {formatTimestamp(lastUpdateTime)}
           </span>
         </div>
+        {error && (
+          <div className="text-sm text-amber-400 mt-4 max-w-md mx-auto">⚠ {error}</div>
+        )}
       </div>
 
-      {/* Data Sections Grid */}
+      {/* Data Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Section title="Battery / BTMS / Charger">
           <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
