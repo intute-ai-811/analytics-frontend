@@ -7,20 +7,18 @@ const SOCKET_URL =
     ? "http://localhost:5000"
     : window.location.origin;
 
-// Consider data "live" if update received in last 15 seconds
-const LIVE_THRESHOLD_MS = 15000;
+const LIVE_THRESHOLD_MS = 15000; // 15 seconds
 
 export default function LiveView() {
   const { id } = useParams();
-
   const [live, setLive] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
 
-  const latestLiveRef = useRef(null);
   const lastActivityRef = useRef(null);
+  const socketRef = useRef(null);
 
   useEffect(() => {
     if (!id) {
@@ -29,10 +27,6 @@ export default function LiveView() {
       return;
     }
 
-    let socket;
-    let renderTimer;
-    let activityTimer;
-
     const token = localStorage.getItem("token");
     if (!token) {
       setError("Please log in to view live data");
@@ -40,60 +34,63 @@ export default function LiveView() {
       return;
     }
 
-    const fetchLiveOnce = async () => {
+    const fetchSnapshot = async () => {
       try {
         const res = await fetch(`/api/vehicles/${id}/live`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(`HTTP ${res.status}: ${text || "Unknown error"}`);
+          throw new Error(`HTTP ${res.status}: ${text || "Failed to fetch"}`);
         }
-
         const data = await res.json();
-        latestLiveRef.current = data;
-
+        setLive(data);
         if (data.recorded_at) {
-          const updateTime = new Date(data.recorded_at);
-          setLastUpdateTime(updateTime);
-          lastActivityRef.current = updateTime.getTime();
+          const t = new Date(data.recorded_at);
+          setLastUpdateTime(t);
+          lastActivityRef.current = t.getTime();
         }
-
-        setLive(data || {});
         setError(null);
       } catch (err) {
         console.error("REST fetch error:", err);
-        setError(err.message);
+        setError(err.message || "Failed to load live data");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLiveOnce();
+    fetchSnapshot();
 
-    socket = io(SOCKET_URL, {
+    // Prevent duplicate socket connections
+    if (socketRef.current) return;
+
+    const socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ["polling", "websocket"],
+      transports: ["websocket"],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
     });
 
+    socketRef.current = socket;
+
     socket.on("connect", () => {
       console.log("WebSocket connected");
       setIsSocketConnected(true);
       socket.emit("subscribe_vehicle", { vehicleId: id });
+      fetchSnapshot(); // Ensure fresh data on reconnect
     });
 
     socket.on("live_update", (data) => {
-      latestLiveRef.current = data;
-
+      setLive((prev) => ({
+        ...prev,
+        ...data, // Partial merge – preserves existing fields
+      }));
       if (data.recorded_at) {
-        const updateTime = new Date(data.recorded_at);
-        setLastUpdateTime(updateTime);
-        lastActivityRef.current = Date.now(); // Fresh data received now
+        const t = new Date(data.recorded_at);
+        setLastUpdateTime(t);
+        lastActivityRef.current = Date.now(); // Mark fresh activity
       }
     });
 
@@ -103,24 +100,16 @@ export default function LiveView() {
     });
 
     socket.on("connect_error", (err) => {
-      console.error("Socket error:", err.message);
+      console.error("Socket connection error:", err.message);
       setIsSocketConnected(false);
     });
 
-    renderTimer = setInterval(() => {
-      if (latestLiveRef.current) {
-        setLive({ ...latestLiveRef.current });
-      }
-    }, 1000);
-
-    activityTimer = setInterval(() => {
-      setLive((prev) => ({ ...prev }));
-    }, 2000);
-
     return () => {
-      socket?.disconnect();
-      clearInterval(renderTimer);
-      clearInterval(activityTimer);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      setIsSocketConnected(false);
     };
   }, [id]);
 
@@ -155,9 +144,7 @@ export default function LiveView() {
     const totalMinutes = Math.round(hours * 60);
     const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
-
     if (hrs === 0) return <span className="text-orange-300 font-semibold">{mins} mins</span>;
-
     return (
       <span className="text-orange-300 font-semibold">
         {hrs} hr{mins > 0 ? ` ${mins} mins` : ""}
@@ -189,7 +176,7 @@ export default function LiveView() {
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      {/* === CLEAN & BEAUTIFUL HEADING (Subtitle Removed) === */}
+      {/* Elegant Header */}
       <div className="text-center mb-12">
         <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
           <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent drop-shadow-lg">
@@ -201,7 +188,7 @@ export default function LiveView() {
         </div>
       </div>
 
-      {/* === STATUS INDICATOR === */}
+      {/* Live Status Indicator */}
       <div className="text-center mb-10 space-y-5">
         <div>
           <span
@@ -214,7 +201,6 @@ export default function LiveView() {
             {isActivelyLive ? "● LIVE (Real-time)" : "○ Last Known Data"}
           </span>
         </div>
-
         <div className="text-lg text-gray-300">
           Data updated at:{" "}
           <span className="text-orange-300 font-bold">
@@ -223,7 +209,7 @@ export default function LiveView() {
         </div>
       </div>
 
-      {/* === DATA GRID === */}
+      {/* Data Sections Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Section title="Battery / BTMS / Charger">
           <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
@@ -232,7 +218,6 @@ export default function LiveView() {
           <Item name="DC Output Current" value={<Val v={live.dc_current_a} unit="A" />} />
           <Item name="Output Power" value={<Val v={live.output_power_kw} unit="kW" />} />
           <Item name="Charging Current" value={<Val v={live.charging_current_a} unit="A" />} />
-
           {[0, 1, 2, 3, 4].map((i) => (
             <Item
               key={`temp-${i}`}
@@ -240,7 +225,6 @@ export default function LiveView() {
               value={<Val v={live.temp_sensors?.[i]} unit="°C" />}
             />
           ))}
-
           {[0, 1, 2, 3, 4].map((i) => (
             <Item
               key={`volt-${i}`}
@@ -319,7 +303,6 @@ export default function LiveView() {
                 </span>
               </div>
             ))}
-
           {Object.keys(live).filter((k) => k.startsWith("alarms_")).length === 0 && (
             <div className="text-gray-500 text-center py-4">No alarm data available</div>
           )}
