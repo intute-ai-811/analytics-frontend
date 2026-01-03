@@ -2,16 +2,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
-/* =========================
-   BACKEND SOCKET URL — FINAL VERSION
-   Works perfectly in local development AND production
-   - Local (localhost): connects directly to backend on port 5000
-   - Production: connects to the same domain (Nginx proxies /socket.io/)
-========================= */
 const SOCKET_URL =
   window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:5000"
     : window.location.origin;
+
+// Consider data "live" if update received in last 15 seconds
+const LIVE_THRESHOLD_MS = 15000;
 
 export default function LiveView() {
   const { id } = useParams();
@@ -19,9 +16,11 @@ export default function LiveView() {
   const [live, setLive] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState("REST"); // REST | SOCKET
+  const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
 
   const latestLiveRef = useRef(null);
+  const lastActivityRef = useRef(null);
 
   useEffect(() => {
     if (!id) {
@@ -32,25 +31,19 @@ export default function LiveView() {
 
     let socket;
     let renderTimer;
-    let fallbackTimer;
+    let activityTimer;
 
     const token = localStorage.getItem("token");
-
     if (!token) {
       setError("Please log in to view live data");
       setLoading(false);
       return;
     }
 
-    /* =========================
-       INITIAL SNAPSHOT (REST)
-    ========================= */
     const fetchLiveOnce = async () => {
       try {
         const res = await fetch(`/api/vehicles/${id}/live`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) {
@@ -60,9 +53,15 @@ export default function LiveView() {
 
         const data = await res.json();
         latestLiveRef.current = data;
+
+        if (data.recorded_at) {
+          const updateTime = new Date(data.recorded_at);
+          setLastUpdateTime(updateTime);
+          lastActivityRef.current = updateTime.getTime();
+        }
+
         setLive(data || {});
         setError(null);
-        setMode("REST");
       } catch (err) {
         console.error("REST fetch error:", err);
         setError(err.message);
@@ -73,9 +72,6 @@ export default function LiveView() {
 
     fetchLiveOnce();
 
-    /* =========================
-       SOCKET.IO CONNECTION (ROBUST)
-    ========================= */
     socket = io(SOCKET_URL, {
       auth: { token },
       transports: ["polling", "websocket"],
@@ -86,61 +82,88 @@ export default function LiveView() {
     });
 
     socket.on("connect", () => {
-      console.log("Socket connected");
+      console.log("WebSocket connected");
+      setIsSocketConnected(true);
       socket.emit("subscribe_vehicle", { vehicleId: id });
-      setMode("SOCKET");
-
-      // Clear fallback polling if socket connects
-      if (fallbackTimer) {
-        clearInterval(fallbackTimer);
-        fallbackTimer = null;
-      }
     });
 
     socket.on("live_update", (data) => {
       latestLiveRef.current = data;
-    });
 
-    socket.on("disconnect", (reason) => {
-      console.warn("Socket disconnected:", reason);
-      setMode("REST");
-
-      // Start fallback polling if not already running
-      if (!fallbackTimer) {
-        fallbackTimer = setInterval(fetchLiveOnce, 1000);
+      if (data.recorded_at) {
+        const updateTime = new Date(data.recorded_at);
+        setLastUpdateTime(updateTime);
+        lastActivityRef.current = Date.now(); // Fresh data received now
       }
     });
 
-    socket.on("connect_error", (err) => {
-      console.error("Socket connect error:", err.message);
-      setMode("REST");
+    socket.on("disconnect", () => {
+      console.warn("WebSocket disconnected");
+      setIsSocketConnected(false);
     });
 
-    /* =========================
-       UI RENDER LOOP (1Hz update)
-    ========================= */
+    socket.on("connect_error", (err) => {
+      console.error("Socket error:", err.message);
+      setIsSocketConnected(false);
+    });
+
     renderTimer = setInterval(() => {
       if (latestLiveRef.current) {
         setLive({ ...latestLiveRef.current });
       }
     }, 1000);
 
-    /* =========================
-       CLEANUP
-    ========================= */
+    activityTimer = setInterval(() => {
+      setLive((prev) => ({ ...prev }));
+    }, 2000);
+
     return () => {
       socket?.disconnect();
       clearInterval(renderTimer);
-      if (fallbackTimer) clearInterval(fallbackTimer);
+      clearInterval(activityTimer);
     };
   }, [id]);
 
-  /* ========================= UI HELPERS ========================= */
+  const isActivelyLive =
+    isSocketConnected &&
+    lastActivityRef.current &&
+    Date.now() - lastActivityRef.current < LIVE_THRESHOLD_MS;
+
+  const formatTimestamp = (date) => {
+    if (!date) return "–";
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  };
+
   const Val = ({ v, unit = "", fixed = 2 }) => (
     <span className="text-orange-300 font-semibold">
       {v == null ? "–" : `${Number(v).toFixed(fixed)}${unit}`}
     </span>
   );
+
+  const HoursToHrMin = ({ hours }) => {
+    if (hours == null || hours === 0) {
+      return <span className="text-orange-300 font-semibold">0 hr 0 mins</span>;
+    }
+    const totalMinutes = Math.round(hours * 60);
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+
+    if (hrs === 0) return <span className="text-orange-300 font-semibold">{mins} mins</span>;
+
+    return (
+      <span className="text-orange-300 font-semibold">
+        {hrs} hr{mins > 0 ? ` ${mins} mins` : ""}
+      </span>
+    );
+  };
 
   const Section = ({ title, children }) => (
     <div className="bg-gray-900/60 rounded-lg p-5 border border-orange-500/30">
@@ -156,45 +179,52 @@ export default function LiveView() {
     </div>
   );
 
-  /* ========================= EARLY RETURNS ========================= */
   if (loading && !Object.keys(live).length) {
-    return (
-      <div className="text-center py-12 text-orange-200">
-        Loading live data…
-      </div>
-    );
+    return <div className="text-center py-12 text-orange-200">Loading live data…</div>;
   }
 
   if (error) {
-    return (
-      <div className="text-center py-12 text-red-400">
-        Error: {error}
-      </div>
-    );
+    return <div className="text-center py-12 text-red-400">Error: {error}</div>;
   }
 
-  /* ========================= MAIN RENDER ========================= */
   return (
-    <div className="max-w-7xl mx-auto p-4">
-      <h2 className="text-2xl font-semibold text-orange-300 mb-4 text-center">
-        Live Vehicle Data
-      </h2>
-
-      <div className="text-center mb-6">
-        <span
-          className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${
-            mode === "SOCKET"
-              ? "bg-emerald-600/30 text-emerald-300 border border-emerald-500/50"
-              : "bg-yellow-600/30 text-yellow-300 border border-yellow-500/50"
-          }`}
-        >
-          {mode === "SOCKET" ? "● LIVE (WebSocket)" : "◷ Fallback (REST Polling)"}
-        </span>
+    <div className="max-w-7xl mx-auto p-6">
+      {/* === CLEAN & BEAUTIFUL HEADING (Subtitle Removed) === */}
+      <div className="text-center mb-12">
+        <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
+          <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent drop-shadow-lg">
+            Live Vehicle Data
+          </span>
+        </h1>
+        <div className="flex justify-center">
+          <div className="h-1 w-40 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full"></div>
+        </div>
       </div>
 
-      {/* === GRID LAYOUT === */}
+      {/* === STATUS INDICATOR === */}
+      <div className="text-center mb-10 space-y-5">
+        <div>
+          <span
+            className={`inline-block px-10 py-5 rounded-full text-xl font-bold shadow-2xl transition-all duration-500 ${
+              isActivelyLive
+                ? "bg-emerald-600/30 text-emerald-300 border-3 border-emerald-500/80 animate-pulse"
+                : "bg-gray-700/40 text-gray-400 border-3 border-gray-600/60"
+            }`}
+          >
+            {isActivelyLive ? "● LIVE (Real-time)" : "○ Last Known Data"}
+          </span>
+        </div>
+
+        <div className="text-lg text-gray-300">
+          Data updated at:{" "}
+          <span className="text-orange-300 font-bold">
+            {formatTimestamp(lastUpdateTime)}
+          </span>
+        </div>
+      </div>
+
+      {/* === DATA GRID === */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Battery / BTMS / Charger */}
         <Section title="Battery / BTMS / Charger">
           <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
           <Item name="Battery Status" value={live.battery_status ?? "–"} />
@@ -220,7 +250,6 @@ export default function LiveView() {
           ))}
         </Section>
 
-        {/* Motor & MCU */}
         <Section title="Motor & MCU">
           <Item name="Torque" value={<Val v={live.motor_torque_nm} unit="Nm" />} />
           <Item name="Operation Mode" value={live.motor_operation_mode ?? "–"} />
@@ -234,22 +263,19 @@ export default function LiveView() {
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
         </Section>
 
-        {/* Peripherals */}
         <Section title="Peripherals Live Data">
           <Item name="Radiator Temperature" value={<Val v={live.radiator_temp_c} unit="°C" fixed={1} />} />
           <Item name="Hydraulic Oil Temperature" value="–" />
           <Item name="Hydraulic Pump RPM" value="–" />
         </Section>
 
-        {/* ODO / Trip */}
         <Section title="ODO / Trip Details">
-          <Item name="Total Running Hours" value={<Val v={live.total_hours} fixed={2} unit=" h" />} />
-          <Item name="Last Trip Hours" value={<Val v={live.last_trip_hrs} fixed={2} unit=" h" />} />
+          <Item name="Total Running Hours" value={<HoursToHrMin hours={live.total_hours} />} />
+          <Item name="Last Trip Hours" value={<HoursToHrMin hours={live.last_trip_hrs} />} />
           <Item name="Total kWh Consumed" value={<Val v={live.total_kwh} fixed={1} unit=" kWh" />} />
           <Item name="kWh Used in Last Trip" value={<Val v={live.last_trip_kwh} fixed={1} unit=" kWh" />} />
         </Section>
 
-        {/* DC-DC Converter */}
         <Section title="DC-DC Converter">
           <Item name="Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit="V" />} />
           <Item name="Input Current" value={<Val v={live.dcdc_input_current_a} unit="A" />} />
@@ -270,7 +296,6 @@ export default function LiveView() {
           <Item name="Overcurrent Fault Count" value={live.dcdc_occurrence_count ?? "–"} />
         </Section>
 
-        {/* Alarms & Warnings */}
         <Section title="Alarms & Warnings">
           {Object.entries(live)
             .filter(([key]) => key.startsWith("alarms_"))
@@ -296,9 +321,7 @@ export default function LiveView() {
             ))}
 
           {Object.keys(live).filter((k) => k.startsWith("alarms_")).length === 0 && (
-            <div className="text-gray-500 text-center py-4">
-              No alarm data available
-            </div>
+            <div className="text-gray-500 text-center py-4">No alarm data available</div>
           )}
         </Section>
       </div>
