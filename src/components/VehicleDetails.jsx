@@ -30,43 +30,51 @@ export default function VehicleDetails() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white px-6 py-10">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
       {/* ===== HEADER ===== */}
-      <div className="max-w-6xl mx-auto border-b border-orange-500/20 pb-6 mb-8">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 via-red-400 to-orange-300 bg-clip-text text-transparent">
-          {vehicle.company_name || vehicle.customer}
-        </h1>
-        <p className="mt-2 text-lg text-orange-200/90">
-          {vehicle.vehicleType || `${vehicle.make} ${vehicle.model}`} •{" "}
-          {vehicle.vehicle_reg_no || vehicle.vehicleNo}
-        </p>
+      <div className="px-6 pt-10 pb-6 border-b border-orange-500/20">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 via-red-400 to-orange-300 bg-clip-text text-transparent">
+            {vehicle.company_name || vehicle.customer}
+          </h1>
+          <p className="mt-2 text-lg text-orange-200/90">
+            {vehicle.vehicleType || `${vehicle.make} ${vehicle.model}`} •{" "}
+            {vehicle.vehicle_reg_no || vehicle.vehicleNo}
+          </p>
+        </div>
       </div>
 
-      {/* ===== TABS ===== */}
-      <div className="max-w-6xl mx-auto flex flex-wrap gap-3">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg border transition font-medium shadow ${
-              activeTab === tab
-                ? "border-orange-500 bg-orange-500/20 text-orange-300"
-                : "border-orange-500/30 text-orange-200 bg-black/40 hover:bg-orange-500/10"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* ===== STICKY TABS ===== */}
+      <div className="sticky top-[73px] z-10 bg-gradient-to-b from-gray-900 to-gray-900/95 backdrop-blur-sm border-b border-orange-500/20 shadow-lg">
+        <div className="px-6 py-4">
+          <div className="max-w-6xl mx-auto flex flex-wrap gap-3">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 rounded-lg border transition font-medium shadow ${
+                  activeTab === tab
+                    ? "border-orange-500 bg-orange-500/20 text-orange-300"
+                    : "border-orange-500/30 text-orange-200 bg-black/40 hover:bg-orange-500/10"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ===== TAB CONTENT ===== */}
-      <div className="max-w-6xl mx-auto mt-10">
-        {activeTab === "Live View" && <LiveView />}
-        {activeTab === "Motor Analytics" && <MotorAnalytics />}
-        {activeTab === "Battery Analytics" && <BatteryAnalytics />}
-        {activeTab === "Motor Faults" && <MotorFaults />}
-        {activeTab === "Database / Log" && <DatabaseLogs />}
-        {activeTab === "Troubleshooting" && <Troubleshooting />}
+      <div className="px-6 py-10">
+        <div className="max-w-6xl mx-auto">
+          {activeTab === "Live View" && <LiveView />}
+          {activeTab === "Motor Analytics" && <MotorAnalytics />}
+          {activeTab === "Battery Analytics" && <BatteryAnalytics />}
+          {activeTab === "Motor Faults" && <MotorFaults />}
+          {activeTab === "Database / Log" && <DatabaseLogs />}
+          {activeTab === "Troubleshooting" && <Troubleshooting />}
+        </div>
       </div>
     </div>
   );

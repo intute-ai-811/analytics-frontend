@@ -8,7 +8,7 @@ export default function LiveView() {
   const [live, setLive] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lastUpdateTime, setLastUpdateTime] = useState(null); // From vehicle recorded_at
+  const [lastUpdateTime, setLastUpdateTime] = useState(null);
 
   const eventSourceRef = useRef(null);
 
@@ -39,7 +39,7 @@ export default function LiveView() {
         }
 
         const data = await res.json();
-        setLive(data); // Complete overwrite
+        setLive(data);
 
         if (data.recorded_at) {
           setLastUpdateTime(new Date(data.recorded_at));
@@ -56,20 +56,16 @@ export default function LiveView() {
 
     fetchSnapshot();
 
-    // Cleanup previous SSE
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
 
-    // SSE Stream
     const es = new EventSource(`/api/vehicles/${id}/stream?token=${token}`);
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-
-        // COMPLETE OVERWRITE — no merging, no stale values
         setLive(data);
 
         if (data.recorded_at) {
@@ -103,7 +99,6 @@ export default function LiveView() {
     };
   }, [id]);
 
-  // Accurate live status: green only if fresh data in last 15s
   const isActivelyLive = (() => {
     if (!lastUpdateTime) return false;
     return Date.now() - lastUpdateTime.getTime() < LIVE_THRESHOLD_MS;
@@ -122,7 +117,6 @@ export default function LiveView() {
         })
       : "–";
 
-  // "X hr Y mins" format
   const HoursToHrMin = ({ hours }) => {
     if (hours == null || hours === 0) {
       return <span className="text-orange-300 font-semibold">0 hr 0 mins</span>;
@@ -169,40 +163,39 @@ export default function LiveView() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-          <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent drop-shadow-lg">
-            Live Vehicle Data
-          </span>
+    <div className="max-w-7xl mx-auto">
+      {/* Compact Header with Status Bar */}
+      <div className="mb-6">
+        {/* Centered Title */}
+        <h1 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent mb-3">
+          Live Vehicle Data
         </h1>
-        <div className="flex justify-center">
-          <div className="h-1 w-40 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full"></div>
-        </div>
-      </div>
 
-      {/* Live Status */}
-      <div className="text-center mb-10 space-y-5">
-        <div>
+        {/* Status Bar - Left and Right */}
+        <div className="flex items-center justify-between">
           <span
-            className={`inline-block px-10 py-5 rounded-full text-xl font-bold shadow-2xl transition-all duration-500 ${
+            className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold ${
               isActivelyLive
-                ? "bg-emerald-600/30 text-emerald-300 border-4 border-emerald-500/80 animate-pulse"
-                : "bg-gray-700/40 text-gray-400 border-4 border-gray-600/60"
+                ? "bg-emerald-600/30 text-emerald-300 border border-emerald-500/80"
+                : "bg-gray-700/40 text-gray-400 border border-gray-600/60"
             }`}
           >
-            {isActivelyLive ? "● LIVE (Real-time)" : "○ Last Known Data"}
+            <span className={isActivelyLive ? "animate-pulse" : ""}>●</span>
+            {isActivelyLive ? "LIVE" : "Last Known"}
           </span>
+          
+          <div className="text-right">
+            <div className="text-xs text-gray-500">Updated</div>
+            <div className="text-sm text-orange-300 font-medium">
+              {formatTimestamp(lastUpdateTime)}
+            </div>
+          </div>
         </div>
-        <div className="text-lg text-gray-300">
-          Data updated at:{" "}
-          <span className="text-orange-300 font-bold">
-            {formatTimestamp(lastUpdateTime)}
-          </span>
-        </div>
+
         {error && (
-          <div className="text-sm text-amber-400 mt-4 max-w-md mx-auto">⚠ {error}</div>
+          <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2 mt-3">
+            ⚠ {error}
+          </div>
         )}
       </div>
 

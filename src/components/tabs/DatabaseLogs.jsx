@@ -1,15 +1,37 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 
-/* ========================= DATABASE / LOGS (RAW TELEMETRY DATA) ========================= */
-export default function DatabaseLogs({ vehicleId }) {
+export default function DatabaseLogs() {
+  const { id } = useParams();
+  const vehicleId = id;
+
+  if (!vehicleId) {
+    return (
+      <div className="flex items-center justify-center h-96 text-orange-400 text-xl font-medium">
+        No vehicle selected
+      </div>
+    );
+  }
+
   const today = new Date();
-  const [selectedDate, setSelectedDate] = useState(fmtDate(today));
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const todayStr = fmtDate(today);
 
+  const [selectedDate, setSelectedDate] = useState(todayStr); // For display
+  const [exportMode, setExportMode] = useState("selected"); // selected, today, week, month, all, custom
+  const [customStart, setCustomStart] = useState(todayStr);
+  const [customEnd, setCustomEnd] = useState(todayStr);
+  const [rows, setRows] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState(null);
+  const [totalExported, setTotalExported] = useState(0);
+  const loadMoreRef = useRef(null);
+
+  /* ========================= COLUMNS (all except alarms) ========================= */
   const COLUMNS = [
-    { key: "recorded_at", label: "Timestamp" },
+    { key: "recorded_at", label: "Timestamp", alwaysVisible: true },
     { key: "soc_percent", label: "SOC (%)" },
     { key: "stack_voltage_v", label: "Stack Voltage (V)" },
     { key: "battery_status", label: "Battery Status" },
@@ -22,236 +44,397 @@ export default function DatabaseLogs({ vehicleId }) {
     { key: "battery_current_a", label: "Battery Current (A)" },
     { key: "charger_current_demand_a", label: "Charger Current Demand (A)" },
     { key: "charger_voltage_demand_v", label: "Charger Voltage Demand (V)" },
+    { key: "cell_voltages", label: "Cell Voltages (V)" },
+    { key: "temp_sensors", label: "Temp Sensors (°C)" },
     { key: "motor_torque_limit", label: "Motor Torque Limit (Nm)" },
     { key: "motor_torque_value", label: "Motor Torque Value (Nm)" },
     { key: "motor_speed_rpm", label: "Motor Speed (RPM)" },
-    { key: "motor_rotation_dir", label: "Motor Rotation Dir" },
+    { key: "motor_rotation_dir", label: "Motor Rotation Direction" },
     { key: "motor_operation_mode", label: "Motor Operation Mode" },
     { key: "mcu_enable_state", label: "MCU Enable State" },
     { key: "motor_ac_current_a", label: "Motor AC Current (A)" },
     { key: "motor_ac_voltage_v", label: "Motor AC Voltage (V)" },
     { key: "dc_side_voltage_v", label: "DC Side Voltage (V)" },
-    { key: "motor_temp_c", label: "Motor Temp (°C)" },
-    { key: "mcu_temp_c", label: "MCU Temp (°C)" },
-    { key: "radiator_temp_c", label: "Radiator Temp (°C)" },
+    { key: "motor_temp_c", label: "Motor Temperature (°C)" },
+    { key: "mcu_temp_c", label: "MCU Temperature (°C)" },
+    { key: "radiator_temp_c", label: "Radiator Temperature (°C)" },
     { key: "total_running_hrs", label: "Total Running Hours" },
     { key: "last_trip_hrs", label: "Last Trip Hours" },
     { key: "total_kwh_consumed", label: "Total kWh Consumed" },
     { key: "last_trip_kwh", label: "Last Trip kWh" },
+    { key: "dcdc_pri_a_mosfet_temp_c", label: "DCDC Pri A MOSFET Temp (°C)" },
+    { key: "dcdc_sec_ls_mosfet_temp_c", label: "DCDC Sec LS MOSFET Temp (°C)" },
+    { key: "dcdc_sec_hs_mosfet_temp_c", label: "DCDC Sec HS MOSFET Temp (°C)" },
+    { key: "dcdc_pri_c_mosfet_temp_c", label: "DCDC Pri C MOSFET Temp (°C)" },
     { key: "dcdc_input_voltage_v", label: "DCDC Input Voltage (V)" },
     { key: "dcdc_input_current_a", label: "DCDC Input Current (A)" },
     { key: "dcdc_output_voltage_v", label: "DCDC Output Voltage (V)" },
     { key: "dcdc_output_current_a", label: "DCDC Output Current (A)" },
     { key: "dcdc_occurence_count", label: "DCDC Occurrence Count" },
-    { key: "dcdc_pri_a_mosfet_temp_c", label: "DCDC Pri A MOSFET Temp (°C)" },
-    { key: "dcdc_sec_ls_mosfet_temp_c", label: "DCDC Sec LS MOSFET Temp (°C)" },
-    { key: "dcdc_sec_hs_mosfet_temp_c", label: "DCDC Sec HS MOSFET Temp (°C)" },
-    { key: "dcdc_pri_c_mosfet_temp_c", label: "DCDC Pri C MOSFET Temp (°C)" },
   ];
 
   const [selectedCols, setSelectedCols] = useState(
-    new Set(COLUMNS.map((c) => c.key))
+    new Set(COLUMNS.filter(c => !c.alwaysVisible).map(c => c.key))
   );
 
-  useEffect(() => {
-    if (!vehicleId || !selectedDate) {
-      setData([]);
-      return;
-    }
-
-    const fetchLogs = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const token = localStorage.getItem("token");
-        const headers = {};
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-
-        const res = await fetch(
-          `/api/database-logs/${vehicleId}?date=${selectedDate}`,
-          { headers }
-        );
-
-        if (!res.ok) {
-          const msg = await res.text().catch(() => "");
-          throw new Error(`Failed: ${res.status} ${msg || res.statusText}`);
-        }
-
-        const rawRows = await res.json();
-
-        // Format complex fields for display
-        const formatted = rawRows.map((row) => ({
-          ...row,
-          recorded_at: row.recorded_at
-            ? new Date(row.recorded_at).toLocaleString("en-IN", {
-                timeZone: "Asia/Kolkata",
-              })
-            : "-",
-          cell_voltages: row.cell_voltages?.join(", ") || "-",
-          temp_sensors: row.temp_sensors?.join(", ") || "-",
-          alarms: row.alarms ? JSON.stringify(row.alarms, null, 2) : "{}",
-          total_running_hrs: row.total_running_hrs || "-",
-          last_trip_hrs: row.last_trip_hrs || "-",
-        }));
-
-        setData(formatted);
-      } catch (err) {
-        console.error("Fetch error:", err);
-        setError(err.message);
-        setData([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLogs();
-  }, [vehicleId, selectedDate]);
-
   const toggleCol = (key) => {
-    setSelectedCols((prev) => {
+    setSelectedCols(prev => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   };
 
-  const exportCSV = () => {
-    if (data.length === 0) return;
-
-    const visibleCols = COLUMNS.filter((c) => selectedCols.has(c.key));
-    const headers = ["Timestamp", ...visibleCols.map((c) => c.label)];
-
-    const rows = data.map((row) => [
-      row.recorded_at,
-      ...visibleCols.map((c) => {
-        const val = row[c.key];
-        if (Array.isArray(val)) return val.join(" | ");
-        if (typeof val === "object") return JSON.stringify(val);
-        return String(val ?? "");
-      }),
-    ]);
-
-    const csv = [headers, ...rows]
-      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `raw_telemetry_${vehicleId}_${selectedDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const selectAllCols = () => {
+    setSelectedCols(new Set(COLUMNS.filter(c => !c.alwaysVisible).map(c => c.key)));
   };
 
+  const deselectAllCols = () => setSelectedCols(new Set());
+
+  /* ========================= FETCH LOGS (for display only - selected day) ========================= */
+  const fetchLogs = async (reset = false) => {
+    if (loading || (!hasMore && !reset)) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const fetchUrl = `/api/database-logs/${vehicleId}?date=${selectedDate}${
+        !reset && cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""
+      }`;
+
+      const res = await fetch(fetchUrl, { headers: authHeaders });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const newRows = await res.json();
+
+      if (!Array.isArray(newRows) || newRows.length === 0) {
+        setHasMore(false);
+        if (reset) setRows([]);
+        return;
+      }
+
+      const updatedRows = reset ? newRows : [...rows, ...newRows];
+      setRows(updatedRows);
+
+      setCursor(newRows[newRows.length - 1].recorded_at_raw);
+
+      const hasMoreHeader = res.headers.get("X-Has-More");
+      setHasMore(hasMoreHeader === "true" || (!hasMoreHeader && newRows.length === 200));
+
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(err.message || "Failed to load data");
+      if (reset) setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ========================= EXPORT DATA (ALL MODES) ========================= */
+  const exportData = async () => {
+    setExporting(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+      let fetchUrl = `/api/database-logs/${vehicleId}?full=true`;
+
+      switch (exportMode) {
+        case "selected":
+          fetchUrl += `&date=${selectedDate}`;
+          break;
+        case "today":
+          fetchUrl += `&period=today`;
+          break;
+        case "week":
+          fetchUrl += `&period=week`;
+          break;
+        case "month":
+          fetchUrl += `&period=month`;
+          break;
+        case "all":
+          fetchUrl += `&period=all`;
+          break;
+        case "custom":
+          if (!customStart || !customEnd) {
+            alert("Please select both start and end dates");
+            return;
+          }
+          fetchUrl += `&start=${customStart}&end=${customEnd}`;
+          break;
+        default:
+          fetchUrl += `&date=${selectedDate}`;
+      }
+
+      const res = await fetch(fetchUrl, { headers: authHeaders });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Failed: ${res.status} ${text || res.statusText}`);
+      }
+
+      const data = await res.json();
+
+      if (!Array.isArray(data) || data.length === 0) {
+        alert("No data available for the selected range");
+        setTotalExported(0);
+        return;
+      }
+
+      setTotalExported(data.length);
+
+      const visibleCols = COLUMNS.filter(c => c.alwaysVisible || selectedCols.has(c.key));
+      const csvHeaders = visibleCols.map(c => c.label);
+      const csvRows = data.map(row =>
+        visibleCols.map(col => {
+          const val = row[col.key];
+          if (val == null) return "";
+          if (Array.isArray(val)) return val.join(" | ");
+          return String(val);
+        })
+      );
+
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+
+      let filename = `raw_telemetry_${vehicleId}`;
+      switch (exportMode) {
+        case "selected":
+          filename += `_${selectedDate}`;
+          break;
+        case "today":
+          filename += `_today_${todayStr}`;
+          break;
+        case "week":
+          filename += `_last7days`;
+          break;
+        case "month":
+          filename += `_last30days`;
+          break;
+        case "all":
+          filename += `_all_time`;
+          break;
+        case "custom":
+          filename += `_from_${customStart}_to_${customEnd}`;
+          break;
+      }
+      filename += `_full_${data.length}_rows.csv`;
+
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+
+    } catch (err) {
+      console.error("Export error:", err);
+      setError("Failed to export data: " + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /* ========================= EFFECTS ========================= */
+  useEffect(() => {
+    setRows([]);
+    setCursor(null);
+    setHasMore(true);
+    setTotalExported(0);
+    fetchLogs(true);
+  }, [vehicleId, selectedDate]);
+
+  useEffect(() => {
+    if (!hasMore || rows.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !loading) {
+          fetchLogs(false);
+        }
+      },
+      { rootMargin: "600px" }
+    );
+
+    if (loadMoreRef.current) observer.observe(loadMoreRef.current);
+
+    return () => observer.disconnect();
+  }, [rows.length, hasMore, loading]);
+
+  /* ========================= RENDER ========================= */
+  const visibleColumns = COLUMNS.filter(c => c.alwaysVisible || selectedCols.has(c.key));
+
   return (
-    <div className="space-y-8 pb-8">
-      <h2 className="text-2xl font-bold text-orange-300 text-center">
+    <div className="space-y-6 pb-8">
+      <h2 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
         Raw Telemetry Logs
       </h2>
 
       {/* Controls */}
-      <div className="border border-orange-500/30 rounded-2xl bg-black/40 backdrop-blur-sm p-6">
-        <div className="space-y-6">
-          {/* Date Picker */}
-          <div className="flex justify-center items-center gap-4 flex-wrap">
-            <label className="text-orange-300 font-medium">Select Date:</label>
+      <div className="bg-gray-900/90 border border-orange-500/30 rounded-xl p-6 shadow-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {/* Display Date */}
+          <div className="flex items-center gap-3">
+            <label className="text-orange-300 font-medium min-w-32">Display Date:</label>
             <input
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              max={fmtDate(today)}
-              className="px-4 py-2 rounded-lg bg-gray-900/70 border border-orange-500/40 text-orange-100 focus:border-orange-500 transition"
+              onChange={e => setSelectedDate(e.target.value)}
+              max={todayStr}
+              className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition"
             />
           </div>
 
-          {/* Column Selection */}
-          <div>
-            <h3 className="text-orange-300 font-semibold mb-3">
-              Select Columns to Display
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
-              {COLUMNS.map((col) => (
-                <label
-                  key={col.key}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-800/50 border border-orange-500/30 cursor-pointer hover:bg-gray-800/70 transition"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedCols.has(col.key)}
-                    onChange={() => toggleCol(col.key)}
-                    className="w-4 h-4 accent-orange-500 rounded"
-                  />
-                  <span className="text-orange-100 text-sm">{col.label}</span>
-                </label>
-              ))}
+          {/* Export Mode Selector */}
+          <div className="flex items-center gap-3">
+            <label className="text-orange-300 font-medium min-w-32">Export Range:</label>
+            <select
+              value={exportMode}
+              onChange={e => setExportMode(e.target.value)}
+              className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition"
+            >
+              <option value="selected">Selected Day</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+              <option value="all">All Historical Data</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Custom Range Inputs */}
+        {exportMode === "custom" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 bg-gray-800/30 rounded-lg border border-orange-500/20">
+            <div className="flex items-center gap-3">
+              <label className="text-orange-300 font-medium">Start Date:</label>
+              <input
+                type="date"
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+                max={customEnd}
+                className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-orange-300 font-medium">End Date:</label>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+                min={customStart}
+                max={todayStr}
+                className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition"
+              />
             </div>
           </div>
+        )}
 
-          {/* Export */}
-          <div className="flex justify-end">
-            <button
-              onClick={exportCSV}
-              disabled={loading || data.length === 0}
-              className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 disabled:opacity-50 transition"
-            >
-              Export Raw Data (CSV)
-            </button>
+        {/* Export Button */}
+        <div className="flex justify-center">
+          <button
+            onClick={exportData}
+            disabled={exporting || loading}
+            className="px-10 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center gap-4"
+          >
+            {exporting ? (
+              <>Exporting data...</>
+            ) : (
+              <>
+                Export Data
+                {totalExported > 0 && ` (${totalExported} rows)`}
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Column Selector */}
+        <div className="pt-8 mt-8 border-t border-orange-500/20">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-orange-400 font-semibold">
+              Visible Columns ({visibleColumns.length}/{COLUMNS.length})
+            </h3>
+            <div className="flex gap-2">
+              <button onClick={selectAllCols} className="text-xs px-4 py-1.5 bg-orange-500/20 border border-orange-500/40 rounded hover:bg-orange-500/30 transition">
+                Select All
+              </button>
+              <button onClick={deselectAllCols} className="text-xs px-4 py-1.5 bg-gray-800/50 border border-orange-500/30 rounded hover:bg-gray-700/50 transition">
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 max-h-80 overflow-y-auto bg-black/30 rounded-lg p-4">
+            {COLUMNS.filter(c => !c.alwaysVisible).map(col => (
+              <label
+                key={col.key}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs transition-all border ${
+                  selectedCols.has(col.key)
+                    ? "bg-orange-500/20 border-orange-500/50 text-orange-100"
+                    : "bg-gray-800/40 border-gray-700 text-orange-200"
+                } hover:bg-orange-500/10`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedCols.has(col.key)}
+                  onChange={() => toggleCol(col.key)}
+                  className="w-4 h-4 accent-orange-500 rounded"
+                />
+                <span className="truncate">{col.label}</span>
+              </label>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl border border-orange-500/30 bg-black/40 backdrop-blur-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          {loading && (
-            <div className="p-12 text-center text-orange-300">
-              Loading all telemetry for {selectedDate}...
-            </div>
+      <div className="bg-gray-900/90 border border-orange-500/30 rounded-xl overflow-hidden shadow-lg">
+        <div className="px-6 py-4 bg-gray-950/80 border-b border-orange-500/20 text-orange-300 font-medium">
+          Showing {rows.length.toLocaleString()} record{rows.length !== 1 ? "s" : ""} for {selectedDate}
+          {totalExported > 0 && totalExported !== rows.length && (
+            <span className="ml-4 text-emerald-400">
+              • Full export available: {totalExported.toLocaleString()} rows
+            </span>
           )}
+        </div>
 
+        <div className="overflow-auto max-h-[700px]">
           {error && (
             <div className="p-12 text-center text-red-400">
-              Error: {error}
+              {error}
             </div>
           )}
 
-          {!loading && !error && data.length === 0 && (
-            <div className="p-12 text-center text-orange-300/70">
-              No telemetry data available for {selectedDate}.
+          {!error && rows.length === 0 && !loading && (
+            <div className="p-16 text-center text-orange-400/70">
+              No telemetry data available for {selectedDate}
             </div>
           )}
 
-          {!loading && !error && data.length > 0 && (
-            <table className="w-full min-w-max text-sm">
-              <thead className="bg-black/50 sticky top-0 border-b border-orange-500/20">
+          {rows.length > 0 && (
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-950/95 z-10 border-b-2 border-orange-500/30">
                 <tr>
-                  <th className="px-6 py-4 text-left text-orange-200 font-semibold">
-                    Timestamp
-                  </th>
-                  {COLUMNS.filter((c) => selectedCols.has(c.key)).map((col) => (
-                    <th
-                      key={col.key}
-                      className="px-6 py-4 text-left text-orange-200 font-semibold min-w-[140px]"
-                    >
+                  {visibleColumns.map(col => (
+                    <th key={col.key} className="px-5 py-3.5 text-left text-orange-400 font-semibold uppercase tracking-wider min-w-[140px]">
                       {col.label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-orange-500/10">
-                {data.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-orange-500/5 transition">
-                    <td className="px-6 py-4 font-medium text-orange-100">
-                      {row.recorded_at}
-                    </td>
-                    {COLUMNS.filter((c) => selectedCols.has(c.key)).map((col) => (
-                      <td key={col.key} className="px-6 py-4 text-orange-100 text-xs">
-                        <pre className="whitespace-pre-wrap break-words">
+                {rows.map((row, i) => (
+                  <tr key={i} className="hover:bg-orange-500/5 transition">
+                    {visibleColumns.map(col => (
+                      <td key={col.key} className="px-5 py-3.5 text-orange-100">
+                        <pre className="font-mono whitespace-pre-wrap break-words text-xs">
                           {formatValue(row[col.key])}
                         </pre>
                       </td>
@@ -261,13 +444,25 @@ export default function DatabaseLogs({ vehicleId }) {
               </tbody>
             </table>
           )}
+
+          {hasMore && (
+            <div ref={loadMoreRef} className="p-8 text-center text-orange-300">
+              {loading ? "Loading more records..." : "Scroll down to load more"}
+            </div>
+          )}
+
+          {!hasMore && rows.length > 0 && (
+            <div className="p-8 text-center text-orange-400/70 border-t border-orange-500/20">
+              End of data • Total loaded: {rows.length.toLocaleString()} rows
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-/* ===== HELPERS ===== */
+/* ========================= HELPERS ========================= */
 const fmtDate = (date) => {
   if (!(date instanceof Date) || isNaN(date)) return "";
   const y = date.getFullYear();
@@ -279,7 +474,6 @@ const fmtDate = (date) => {
 const formatValue = (val) => {
   if (val == null) return "-";
   if (Array.isArray(val)) return val.join(" | ");
-  if (typeof val === "object") return JSON.stringify(val, null, 2);
-  if (typeof val === "string" && val.includes(":")) return val; // interval
+  if (typeof val === "object" && val !== null) return JSON.stringify(val, null, 2);
   return String(val);
 };

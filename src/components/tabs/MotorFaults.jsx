@@ -56,32 +56,28 @@ export default function MotorFaults() {
     return map;
   }, [logs]);
 
-  /* ========================= FILTERED LOGS ========================= */
+  /* ========================= FILTERED & SORTED LOGS ========================= */
   const filtered = useMemo(() => {
     let list = logs;
 
-    // Apply code filter
     if (selectedCodes.size > 0) {
       list = list.filter((l) => selectedCodes.has(l.code));
     }
 
-    // Sort: Active first, then newest
+    // Unfixed (active) faults first, then newest activations
     return [...list].sort((a, b) => {
-      if (a.status !== b.status) {
-        return a.status === "ACTIVE" ? -1 : 1;
+      if (!!a.cleared_at !== !!b.cleared_at) {
+        return a.cleared_at ? 1 : -1; // active (no cleared_at) comes first
       }
-      return new Date(b.recorded_at) - new Date(a.recorded_at);
+      return new Date(b.activated_at) - new Date(a.activated_at);
     });
   }, [logs, selectedCodes]);
 
   const toggleCode = (code) => {
     setSelectedCodes((prev) => {
       const next = new Set(prev);
-      if (next.has(code)) {
-        next.delete(code);
-      } else {
-        next.add(code);
-      }
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
       return next;
     });
   };
@@ -91,12 +87,12 @@ export default function MotorFaults() {
   /* ========================= CSV EXPORT ========================= */
   const exportCSV = () => {
     const rows = [
-      ["Timestamp", "Code", "Description", "Status"],
+      ["Activated At", "Fixed At", "Code", "Description"],
       ...filtered.map((l) => [
-        new Date(l.recorded_at).toLocaleString(),
+        new Date(l.activated_at).toLocaleString(),
+        l.cleared_at ? new Date(l.cleared_at).toLocaleString() : "",
         l.code,
         pretty(l.code),
-        l.status,
       ]),
     ];
 
@@ -133,9 +129,10 @@ export default function MotorFaults() {
   const uniqueCodes = [...new Set(logs.map((l) => l.code))];
 
   return (
-    <div className="space-y-8 pb-8">
-      <h2 className="text-2xl font-bold text-orange-300 text-center">
-        Motor Faults History
+    <div className="space-y-6 pb-8">
+      {/* ===== CENTERED TITLE ===== */}
+      <h2 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent mb-3">
+        Motor Fault History
       </h2>
 
       {/* ===== DATE FILTER ===== */}
@@ -158,92 +155,106 @@ export default function MotorFaults() {
       </div>
 
       {/* ===== FAULT TYPE FILTER BUTTONS ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        <button
-          onClick={() => setSelectedCodes(new Set())}
-          className={`px-5 py-3 rounded-xl border font-medium transition ${
-            selectedCodes.size === 0
-              ? "border-orange-500 bg-orange-500/20 text-orange-300 shadow-md"
-              : "border-orange-500/30 text-orange-200 bg-black/40 hover:bg-orange-500/10"
-          }`}
-        >
-          All Faults ({logs.length})
-        </button>
-
-        {uniqueCodes.map((code) => (
+      <div className="bg-gradient-to-br from-gray-900/90 to-black/80 border border-orange-500/30 rounded-xl p-5 shadow-lg">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           <button
-            key={code}
-            onClick={() => toggleCode(code)}
-            className={`flex justify-between items-center px-5 py-3 rounded-xl border font-medium transition ${
-              selectedCodes.has(code)
-                ? "border-orange-500 bg-orange-500/20 text-orange-300 shadow-md"
-                : "border-orange-500/30 text-orange-200 bg-black/40 hover:bg-orange-500/10"
+            onClick={() => setSelectedCodes(new Set())}
+            className={`px-4 py-3 rounded-lg border font-medium transition-all ${
+              selectedCodes.size === 0
+                ? "border-orange-500 bg-orange-500/20 text-orange-300 shadow-lg scale-105"
+                : "border-orange-500/30 text-orange-200 bg-gray-800/40 hover:bg-orange-500/10 hover:border-orange-500/50"
             }`}
           >
-            <span>{pretty(code)}</span>
-            <span className="ml-3 text-xs px-2.5 py-1 rounded-full bg-orange-600/30 border border-orange-500/50">
-              {counts.get(code) || 0}
-            </span>
+            <div className="flex items-center justify-between">
+              <span>All Faults</span>
+              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-600/40 border border-orange-500/60">
+                {logs.length}
+              </span>
+            </div>
           </button>
-        ))}
+
+          {uniqueCodes.map((code) => (
+            <button
+              key={code}
+              onClick={() => toggleCode(code)}
+              className={`px-4 py-3 rounded-lg border font-medium transition-all ${
+                selectedCodes.has(code)
+                  ? "border-orange-500 bg-orange-500/20 text-orange-300 shadow-lg scale-105"
+                  : "border-orange-500/30 text-orange-200 bg-gray-800/40 hover:bg-orange-500/10 hover:border-orange-500/50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-left">{pretty(code)}</span>
+                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-600/40 border border-orange-500/60 flex-shrink-0">
+                  {counts.get(code) || 0}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ===== EXPORT BUTTON ===== */}
-      <div className="flex justify-end">
-        <button
-          onClick={exportCSV}
-          className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition"
-        >
-          Export as CSV
-        </button>
-      </div>
-
-      {/* ===== LOG TABLE ===== */}
-      <div className="rounded-2xl border border-orange-500/30 bg-black/40 backdrop-blur-sm overflow-hidden">
-        <div className="px-6 py-4 text-orange-200 border-b border-orange-500/20 flex justify-between items-center">
-          <div>
-            Showing <strong>{filtered.length}</strong> fault log{filtered.length !== 1 ? "s" : ""}
-            {selectedDate && ` on ${selectedDate}`}
-            {selectedCodes.size > 0 && " (filtered by type)"}
+      {/* ===== FAULT LOG TABLE ===== */}
+      <div className="bg-gradient-to-br from-gray-900/90 to-black/80 rounded-xl border border-orange-500/30 overflow-hidden shadow-lg">
+        {/* Header */}
+        <div className="px-6 py-4 bg-gray-900/60 border-b border-orange-500/20 flex justify-between items-center">
+          <div className="text-orange-300 font-medium">
+            <span className="text-orange-400 font-bold">{filtered.length}</span> fault session{filtered.length !== 1 ? "s" : ""}
+            {selectedDate && <span className="text-orange-200/70"> on {selectedDate}</span>}
+            {selectedCodes.size > 0 && <span className="text-orange-200/70"> (filtered)</span>}
           </div>
+          
+          <button
+            onClick={exportCSV}
+            className="px-5 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg hover:scale-105 transition-all text-sm"
+          >
+            Export CSV
+          </button>
         </div>
 
-        <div className="max-h-96 overflow-y-auto divide-y divide-orange-500/10">
+        {/* Scrollable Content */}
+        <div className="max-h-[500px] overflow-y-auto divide-y divide-orange-500/10">
           {filtered.length === 0 ? (
-            <div className="px-6 py-12 text-center text-orange-300/70">
-              No fault logs found for the selected filters.
+            <div className="px-6 py-16 text-center text-orange-300/70">
+              No fault sessions found for the selected filters.
             </div>
           ) : (
             filtered.map((l) => (
               <div
                 key={l.dtc_id}
-                className="px-6 py-4 flex justify-between items-center hover:bg-orange-500/5 transition"
+                className="px-6 py-5 hover:bg-orange-500/5 transition-all group"
               >
-                <div>
-                  <div className="font-medium text-orange-100">
-                    {pretty(l.code)}
-                  </div>
-                  {l.description && (
-                    <div className="text-sm text-orange-200/60 mt-1">
-                      {l.description}
+                <div className="flex justify-between items-start gap-6">
+                  {/* Left: Fault Info */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className={`w-2 h-2 rounded-full ${l.cleared_at ? 'bg-emerald-400' : 'bg-red-400 animate-pulse'}`} />
+                      <div className="font-semibold text-orange-100 text-lg">
+                        {pretty(l.code)}
+                      </div>
                     </div>
-                  )}
-                </div>
+                    {l.description && (
+                      <div className="text-sm text-orange-200/60 ml-5">
+                        {l.description}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="flex items-center gap-6 text-sm">
-                  <span
-                    className={`px-3 py-1.5 rounded-full font-medium text-xs border ${
-                      l.status === "ACTIVE"
-                        ? "bg-red-600/20 text-red-300 border-red-600/40"
-                        : "bg-emerald-600/20 text-emerald-300 border-emerald-600/40"
-                    }`}
-                  >
-                    {l.status}
-                  </span>
-
-                  <span className="text-orange-200/70">
-                    {new Date(l.recorded_at).toLocaleString()}
-                  </span>
+                  {/* Right: Timestamps */}
+                  <div className="text-right space-y-1 min-w-[200px]">
+                    <div className="text-sm text-orange-300 font-medium">
+                      {new Date(l.activated_at).toLocaleString()}
+                    </div>
+                    <div className={`text-xs px-3 py-1 rounded-full inline-block ${
+                      l.cleared_at 
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                        : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                    }`}>
+                      {l.cleared_at
+                        ? `Fixed: ${new Date(l.cleared_at).toLocaleString()}`
+                        : "Active"}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))
