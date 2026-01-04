@@ -43,7 +43,7 @@ export default function CustomerSplash() {
         />
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes logo-enter {
           0% {
             opacity: 0;
