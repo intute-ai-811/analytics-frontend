@@ -11,15 +11,58 @@ import Troubleshooting from "./tabs/Troubleshooting";
 /* ========================= PAGE SHELL ========================= */
 export default function VehicleDetails() {
   const [vehicle, setVehicle] = useState(null);
+  const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("Live View");
 
   useEffect(() => {
-    const data = localStorage.getItem("selectedVehicle");
-    if (data) setVehicle(JSON.parse(data));
+    // Load selected vehicle
+    const vehicleData = localStorage.getItem("selectedVehicle");
+    if (vehicleData) setVehicle(JSON.parse(vehicleData));
+
+    // Load logged-in user to check role
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      const parsed = JSON.parse(userData);
+      setUser(parsed);
+    }
   }, []);
 
   if (!vehicle) return null;
 
+  const isCustomer = user?.role === "customer";
+  const isAdmin = user?.role === "admin";
+
+  // Customers only see Live View — no tabs needed
+  if (isCustomer) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
+        {/* ===== HEADER ===== */}
+        <div className="px-6 pt-10 pb-6 border-b border-orange-500/20">
+          <div className="max-w-6xl mx-auto">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 via-red-400 to-orange-300 bg-clip-text text-transparent">
+              {vehicle.company_name || vehicle.customer || "My Vehicle"}
+            </h1>
+            <p className="mt-2 text-lg text-orange-200/90">
+              {vehicle.vehicleType || `${vehicle.make} ${vehicle.model}`} •{" "}
+              {vehicle.vehicle_reg_no || vehicle.vehicleNo}
+            </p>
+            <p className="mt-4 text-sm text-orange-300/70 font-medium">
+              Live Vehicle Monitoring
+            </p>
+          </div>
+        </div>
+
+        {/* ===== FULL LIVE VIEW FOR CUSTOMER ===== */}
+        <div className="px-6 py-10">
+          <div className="max-w-6xl mx-auto">
+            <LiveView />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== ADMIN VIEW: Full tabs =====
   const tabs = [
     "Live View",
     "Motor Analytics",
@@ -35,7 +78,7 @@ export default function VehicleDetails() {
       <div className="px-6 pt-10 pb-6 border-b border-orange-500/20">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 via-red-400 to-orange-300 bg-clip-text text-transparent">
-            {vehicle.company_name || vehicle.customer}
+            {vehicle.company_name || vehicle.customer || "Vehicle Details"}
           </h1>
           <p className="mt-2 text-lg text-orange-200/90">
             {vehicle.vehicleType || `${vehicle.make} ${vehicle.model}`} •{" "}
@@ -44,7 +87,7 @@ export default function VehicleDetails() {
         </div>
       </div>
 
-      {/* ===== STICKY TABS ===== */}
+      {/* ===== STICKY TABS (Admin Only) ===== */}
       <div className="sticky top-[73px] z-10 bg-gradient-to-b from-gray-900 to-gray-900/95 backdrop-blur-sm border-b border-orange-500/20 shadow-lg">
         <div className="px-6 py-4">
           <div className="max-w-6xl mx-auto flex flex-wrap gap-3">
@@ -65,7 +108,7 @@ export default function VehicleDetails() {
         </div>
       </div>
 
-      {/* ===== TAB CONTENT ===== */}
+      {/* ===== TAB CONTENT (Admin Only) ===== */}
       <div className="px-6 py-10">
         <div className="max-w-6xl mx-auto">
           {activeTab === "Live View" && <LiveView />}
