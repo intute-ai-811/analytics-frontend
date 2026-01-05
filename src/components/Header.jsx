@@ -10,8 +10,9 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  Eye,        // ← NEW
-  EyeOff,      // ← NEW
+  Eye,
+  EyeOff,
+  Settings,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
@@ -231,11 +232,54 @@ function Header({ user, onLogout }) {
         </>
       )}
 
-      {/* MASTERS MODAL (Admin Only) */}
+      {/* MASTERS MODAL - FULLY FIXED & WORKING */}
       {isAdmin && showMastersModal && (
-        /* ... your existing masters modal (unchanged) ... */
-        <div className="fixed inset-0 z-40 flex items-center justify-center">
-          {/* ... */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setShowMastersModal(false)}
+          />
+          <div className="relative w-full max-w-md mx-4 bg-gray-900 rounded-2xl border border-orange-500/40 p-8 shadow-2xl">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <Database className="w-8 h-8 text-orange-400" />
+                <h3 className="text-2xl font-bold text-white">Master Databases</h3>
+              </div>
+              <button
+                onClick={() => setShowMastersModal(false)}
+                className="p-2 rounded-lg bg-gray-800/50 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {masters.map((master) => (
+                <button
+                  key={master.key}
+                  onClick={() => goTo(master.to)}
+                  className="w-full flex items-center gap-4 px-6 py-5 rounded-xl bg-gray-800/50 border border-orange-500/30 hover:bg-orange-500/10 hover:border-orange-400 transition-all group"
+                >
+                  <Settings className="w-6 h-6 text-orange-400 group-hover:text-orange-300" />
+                  <span className="text-left text-white font-medium flex-1">
+                    {master.label}
+                  </span>
+                  <ArrowRight className="w-5 h-5 text-orange-400 group-hover:text-orange-300 group-hover:translate-x-1 transition" />
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-8 text-center">
+              <button
+                onClick={() => setShowMastersModal(false)}
+                className="px-8 py-3 bg-gray-800 border border-orange-500/30 rounded-xl text-orange-200 hover:bg-gray-700 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -250,7 +294,6 @@ function Header({ user, onLogout }) {
             </div>
 
             <form onSubmit={handleChangePassword} className="space-y-5">
-              {/* Current Password */}
               <div className="relative">
                 <label className="block text-sm font-medium text-orange-200 mb-2">
                   Current Password
@@ -271,7 +314,6 @@ function Header({ user, onLogout }) {
                 </button>
               </div>
 
-              {/* New Password */}
               <div className="relative">
                 <label className="block text-sm font-medium text-orange-200 mb-2">
                   New Password
@@ -293,7 +335,6 @@ function Header({ user, onLogout }) {
                 </button>
               </div>
 
-              {/* Confirm New Password */}
               <div className="relative">
                 <label className="block text-sm font-medium text-orange-200 mb-2">
                   Confirm New Password
@@ -314,7 +355,6 @@ function Header({ user, onLogout }) {
                 </button>
               </div>
 
-              {/* Message */}
               {message.text && (
                 <div
                   className={`flex items-center gap-2 p-3 rounded-lg ${
