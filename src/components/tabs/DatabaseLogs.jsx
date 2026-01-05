@@ -16,8 +16,8 @@ export default function DatabaseLogs() {
   const today = new Date();
   const todayStr = fmtDate(today);
 
-  const [selectedDate, setSelectedDate] = useState(todayStr); // For display
-  const [exportMode, setExportMode] = useState("selected"); // selected, today, week, month, all, custom
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [exportMode, setExportMode] = useState("selected");
   const [customStart, setCustomStart] = useState(todayStr);
   const [customEnd, setCustomEnd] = useState(todayStr);
   const [rows, setRows] = useState([]);
@@ -29,23 +29,31 @@ export default function DatabaseLogs() {
   const [totalExported, setTotalExported] = useState(0);
   const loadMoreRef = useRef(null);
 
-  /* ========================= COLUMNS (all except alarms) ========================= */
+  /* ========================= ALL COLUMNS (including new BTMS & Motor Raw) ========================= */
   const COLUMNS = [
     { key: "recorded_at", label: "Timestamp", alwaysVisible: true },
+
+    // Battery Basics
     { key: "soc_percent", label: "SOC (%)" },
-    { key: "stack_voltage_v", label: "Stack Voltage (V)" },
     { key: "battery_status", label: "Battery Status" },
+    { key: "stack_voltage_v", label: "Stack Voltage (V)" },
+    { key: "battery_current_a", label: "Battery Current (A)" },
+    { key: "charger_current_demand_a", label: "Charger Current Demand (A)" },
+    { key: "charger_voltage_demand_v", label: "Charger Voltage Demand (V)" },
+
+    // Cell & Temperature Stats
     { key: "max_voltage_v", label: "Max Cell Voltage (V)" },
     { key: "min_voltage_v", label: "Min Cell Voltage (V)" },
     { key: "avg_voltage_v", label: "Avg Cell Voltage (V)" },
     { key: "max_temp_c", label: "Max Battery Temp (°C)" },
     { key: "min_temp_c", label: "Min Battery Temp (°C)" },
     { key: "avg_temp_c", label: "Avg Battery Temp (°C)" },
-    { key: "battery_current_a", label: "Battery Current (A)" },
-    { key: "charger_current_demand_a", label: "Charger Current Demand (A)" },
-    { key: "charger_voltage_demand_v", label: "Charger Voltage Demand (V)" },
+
+    // Module Sensors
     { key: "cell_voltages", label: "Cell Voltages (V)" },
     { key: "temp_sensors", label: "Temp Sensors (°C)" },
+
+    // Motor & Inverter
     { key: "motor_torque_limit", label: "Motor Torque Limit (Nm)" },
     { key: "motor_torque_value", label: "Motor Torque Value (Nm)" },
     { key: "motor_speed_rpm", label: "Motor Speed (RPM)" },
@@ -58,10 +66,30 @@ export default function DatabaseLogs() {
     { key: "motor_temp_c", label: "Motor Temperature (°C)" },
     { key: "mcu_temp_c", label: "MCU Temperature (°C)" },
     { key: "radiator_temp_c", label: "Radiator Temperature (°C)" },
-    { key: "total_running_hrs", label: "Total Running Hours" },
-    { key: "last_trip_hrs", label: "Last Trip Hours" },
-    { key: "total_kwh_consumed", label: "Total kWh Consumed" },
-    { key: "last_trip_kwh", label: "Last Trip kWh" },
+
+    // New: Motor Raw Data
+    { key: "motor_status_word", label: "Motor Status Word" },
+    { key: "motor_freq_raw", label: "Motor Frequency Raw" },
+    { key: "motor_total_wattage_w", label: "Motor Total Wattage (W)" },
+    { key: "motor_dc_input_voltage_raw", label: "Motor DC Input Voltage Raw" },
+    { key: "motor_ac_output_voltage_raw", label: "Motor AC Output Voltage Raw" },
+
+    // BTMS (Thermal Management)
+    { key: "btms_command_mode", label: "BTMS Command Mode" },
+    { key: "btms_status_mode", label: "BTMS Status Mode" },
+    { key: "btms_hv_request", label: "BTMS HV Request" },
+    { key: "btms_charge_status", label: "BTMS Charge Status" },
+    { key: "bms_hv_relay_state", label: "BMS HV Relay State" },
+    { key: "btms_hv_relay_state", label: "BTMS HV Relay State" },
+    { key: "btms_target_temp_c", label: "BTMS Target Temp (°C)" },
+    { key: "btms_inlet_temp_c", label: "BTMS Inlet Temp (°C)" },
+    { key: "btms_outlet_temp_c", label: "BTMS Outlet Temp (°C)" },
+    { key: "btms_demand_power_kw", label: "BTMS Demand Power (kW)" },
+    { key: "bms_pack_voltage_v", label: "BMS Pack Voltage (V)" },
+    { key: "bms_life_counter", label: "BMS Life Counter" },
+    { key: "btms_command_crc", label: "BTMS Command CRC" },
+
+    // DC-DC Converter
     { key: "dcdc_pri_a_mosfet_temp_c", label: "DCDC Pri A MOSFET Temp (°C)" },
     { key: "dcdc_sec_ls_mosfet_temp_c", label: "DCDC Sec LS MOSFET Temp (°C)" },
     { key: "dcdc_sec_hs_mosfet_temp_c", label: "DCDC Sec HS MOSFET Temp (°C)" },
@@ -70,7 +98,13 @@ export default function DatabaseLogs() {
     { key: "dcdc_input_current_a", label: "DCDC Input Current (A)" },
     { key: "dcdc_output_voltage_v", label: "DCDC Output Voltage (V)" },
     { key: "dcdc_output_current_a", label: "DCDC Output Current (A)" },
-    { key: "dcdc_occurence_count", label: "DCDC Occurrence Count" },
+    { key: "dcdc_occurence_count", label: "DCDC Overcurrent Count" },
+
+    // Odometer & Energy
+    { key: "total_running_hrs", label: "Total Running Hours" },
+    { key: "last_trip_hrs", label: "Last Trip Hours" },
+    { key: "total_kwh_consumed", label: "Total kWh Consumed" },
+    { key: "last_trip_kwh", label: "Last Trip kWh" },
   ];
 
   const [selectedCols, setSelectedCols] = useState(
@@ -91,7 +125,7 @@ export default function DatabaseLogs() {
 
   const deselectAllCols = () => setSelectedCols(new Set());
 
-  /* ========================= FETCH LOGS (for display only - selected day) ========================= */
+  /* ========================= FETCH LOGS ========================= */
   const fetchLogs = async (reset = false) => {
     if (loading || (!hasMore && !reset)) return;
 
@@ -134,7 +168,7 @@ export default function DatabaseLogs() {
     }
   };
 
-  /* ========================= EXPORT DATA (ALL MODES) ========================= */
+  /* ========================= EXPORT DATA ========================= */
   const exportData = async () => {
     setExporting(true);
     setError(null);
@@ -192,9 +226,8 @@ export default function DatabaseLogs() {
       const csvHeaders = visibleCols.map(c => c.label);
       const csvRows = data.map(row =>
         visibleCols.map(col => {
-          const val = row[col.key];
-          if (val == null) return "";
-          if (Array.isArray(val)) return val.join(" | ");
+          const val = formatValue(row[col.key], col.key);
+          if (val == null || val === "") return "";
           return String(val);
         })
       );
@@ -210,24 +243,12 @@ export default function DatabaseLogs() {
 
       let filename = `raw_telemetry_${vehicleId}`;
       switch (exportMode) {
-        case "selected":
-          filename += `_${selectedDate}`;
-          break;
-        case "today":
-          filename += `_today_${todayStr}`;
-          break;
-        case "week":
-          filename += `_last7days`;
-          break;
-        case "month":
-          filename += `_last30days`;
-          break;
-        case "all":
-          filename += `_all_time`;
-          break;
-        case "custom":
-          filename += `_from_${customStart}_to_${customEnd}`;
-          break;
+        case "selected": filename += `_${selectedDate}`; break;
+        case "today": filename += `_today_${todayStr}`; break;
+        case "week": filename += `_last7days`; break;
+        case "month": filename += `_last30days`; break;
+        case "all": filename += `_all_time`; break;
+        case "custom": filename += `_from_${customStart}_to_${customEnd}`; break;
       }
       filename += `_full_${data.length}_rows.csv`;
 
@@ -269,6 +290,29 @@ export default function DatabaseLogs() {
     return () => observer.disconnect();
   }, [rows.length, hasMore, loading]);
 
+  /* ========================= FORMATTING HELPER (with optional enhancements) ========================= */
+  const formatValue = (val, key) => {
+    if (val == null) return "-";
+
+    // Arrays (cell voltages, temp sensors)
+    if (Array.isArray(val)) return val.join(" | ");
+
+    // Binary relay / request states
+    if (key === "btms_hv_request" || key === "bms_hv_relay_state" || key === "btms_hv_relay_state") {
+      if (val === 1) return "ON / CLOSED";
+      if (val === 0) return "OFF / OPEN";
+      return val;
+    }
+
+    // Motor status word → hex
+    if (key === "motor_status_word") {
+      return `0x${Number(val).toString(16).toUpperCase()}`;
+    }
+
+    // Default: just stringify
+    return String(val);
+  };
+
   /* ========================= RENDER ========================= */
   const visibleColumns = COLUMNS.filter(c => c.alwaysVisible || selectedCols.has(c.key));
 
@@ -281,7 +325,6 @@ export default function DatabaseLogs() {
       {/* Controls */}
       <div className="bg-gray-900/90 border border-orange-500/30 rounded-xl p-6 shadow-lg">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Display Date */}
           <div className="flex items-center gap-3">
             <label className="text-orange-300 font-medium min-w-32">Display Date:</label>
             <input
@@ -293,7 +336,6 @@ export default function DatabaseLogs() {
             />
           </div>
 
-          {/* Export Mode Selector */}
           <div className="flex items-center gap-3">
             <label className="text-orange-300 font-medium min-w-32">Export Range:</label>
             <select
@@ -311,7 +353,6 @@ export default function DatabaseLogs() {
           </div>
         </div>
 
-        {/* Custom Range Inputs */}
         {exportMode === "custom" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 bg-gray-800/30 rounded-lg border border-orange-500/20">
             <div className="flex items-center gap-3">
@@ -338,7 +379,6 @@ export default function DatabaseLogs() {
           </div>
         )}
 
-        {/* Export Button */}
         <div className="flex justify-center">
           <button
             onClick={exportData}
@@ -356,7 +396,6 @@ export default function DatabaseLogs() {
           </button>
         </div>
 
-        {/* Column Selector */}
         <div className="pt-8 mt-8 border-t border-orange-500/20">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-orange-400 font-semibold">
@@ -435,7 +474,7 @@ export default function DatabaseLogs() {
                     {visibleColumns.map(col => (
                       <td key={col.key} className="px-5 py-3.5 text-orange-100">
                         <pre className="font-mono whitespace-pre-wrap break-words text-xs">
-                          {formatValue(row[col.key])}
+                          {formatValue(row[col.key], col.key)}
                         </pre>
                       </td>
                     ))}
@@ -469,11 +508,4 @@ const fmtDate = (date) => {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-};
-
-const formatValue = (val) => {
-  if (val == null) return "-";
-  if (Array.isArray(val)) return val.join(" | ");
-  if (typeof val === "object" && val !== null) return JSON.stringify(val, null, 2);
-  return String(val);
 };

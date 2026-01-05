@@ -26,7 +26,6 @@ export default function LiveView() {
       return;
     }
 
-    // Initial snapshot
     const fetchSnapshot = async () => {
       try {
         const res = await fetch(`/api/vehicles/${id}/live`, {
@@ -164,14 +163,12 @@ export default function LiveView() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Compact Header with Status Bar */}
+      {/* Compact Header */}
       <div className="mb-6">
-        {/* Centered Title */}
         <h1 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent mb-3">
           Live Vehicle Data
         </h1>
 
-        {/* Status Bar - Left and Right */}
         <div className="flex items-center justify-between">
           <span
             className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold ${
@@ -199,9 +196,10 @@ export default function LiveView() {
         )}
       </div>
 
-      {/* Data Grid */}
+      {/* 2-Column Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Section title="Battery / BTMS / Charger">
+        {/* Battery + Basic BMS Data */}
+        <Section title="Battery / BMS / Charger">
           <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
           <Item name="Battery Status" value={live.battery_status ?? "–"} />
           <Item name="Stack Voltage" value={<Val v={live.stack_voltage_v} unit="V" />} />
@@ -224,6 +222,7 @@ export default function LiveView() {
           ))}
         </Section>
 
+        {/* Motor & MCU + New Raw Fields */}
         <Section title="Motor & MCU">
           <Item name="Torque" value={<Val v={live.motor_torque_nm} unit="Nm" />} />
           <Item name="Operation Mode" value={live.motor_operation_mode ?? "–"} />
@@ -235,6 +234,13 @@ export default function LiveView() {
           <Item name="AC Voltage" value={<Val v={live.motor_ac_voltage_v} unit="V" />} />
           <Item name="MCU Enable State" value={live.mcu_enable_state ?? "–"} />
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
+
+          {/* New Motor Raw Fields */}
+          <Item name="Status Word" value={live.motor_status_word != null ? `0x${Number(live.motor_status_word).toString(16).toUpperCase()}` : "–"} />
+          <Item name="Frequency Raw" value={live.motor_freq_raw ?? "–"} />
+          <Item name="Total Wattage" value={<Val v={live.motor_total_wattage_w} unit="W" fixed={0} />} />
+          <Item name="DC Input Voltage Raw" value={live.motor_dc_input_voltage_raw ?? "–"} />
+          <Item name="AC Output Voltage Raw" value={live.motor_ac_output_voltage_raw ?? "–"} />
         </Section>
 
         <Section title="Peripherals Live Data">
@@ -250,6 +256,7 @@ export default function LiveView() {
           <Item name="kWh Used in Last Trip" value={<Val v={live.last_trip_kwh} fixed={1} unit=" kWh" />} />
         </Section>
 
+        {/* DC-DC Converter */}
         <Section title="DC-DC Converter">
           <Item name="Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit="V" />} />
           <Item name="Input Current" value={<Val v={live.dcdc_input_current_a} unit="A" />} />
@@ -270,33 +277,52 @@ export default function LiveView() {
           <Item name="Overcurrent Fault Count" value={live.dcdc_occurrence_count ?? "–"} />
         </Section>
 
-        <Section title="Alarms & Warnings">
-          {Object.entries(live)
-            .filter(([key]) => key.startsWith("alarms_"))
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => (
-              <div
-                key={key}
-                className="flex justify-between items-center bg-gray-800/40 px-3 py-2 rounded-md text-sm border border-orange-500/20"
-              >
-                <span className="text-gray-300 capitalize">
-                  {key.replace("alarms_", "").replace(/_/g, " ")}
-                </span>
-                <span
-                  className={`px-3 py-1 rounded-md text-xs font-semibold ${
-                    value
-                      ? "bg-red-600/20 text-red-300"
-                      : "bg-emerald-600/20 text-emerald-300"
-                  }`}
-                >
-                  {value ? "ACTIVE" : "OK"}
-                </span>
-              </div>
-            ))}
-          {Object.keys(live).filter((k) => k.startsWith("alarms_")).length === 0 && (
-            <div className="text-gray-500 text-center py-4">No alarm data available</div>
-          )}
+        {/* BTMS Section */}
+        <Section title="BTMS (Thermal Management)">
+          <Item name="Command Mode" value={live.btms_command_mode ?? "–"} />
+          <Item name="Status Mode" value={live.btms_status_mode != null ? live.btms_status_mode : "–"} />
+          <Item name="HV Request" value={live.btms_hv_request === 1 ? "ON" : live.btms_hv_request === 0 ? "OFF" : "–"} />
+          <Item name="Charge Status" value={live.btms_charge_status ?? "–"} />
+          <Item name="HV Relay State (BMS)" value={live.bms_hv_relay_state === 1 ? "CLOSED" : live.bms_hv_relay_state === 0 ? "OPEN" : "–"} />
+          <Item name="HV Relay State (BTMS)" value={live.btms_hv_relay_state === 1 ? "CLOSED" : live.btms_hv_relay_state === 0 ? "OPEN" : "–"} />
+          <Item name="Target Temp" value={<Val v={live.btms_target_temp_c} unit="°C" />} />
+          <Item name="Inlet Temp" value={<Val v={live.btms_inlet_temp_c} unit="°C" />} />
+          <Item name="Outlet Temp" value={<Val v={live.btms_outlet_temp_c} unit="°C" />} />
+          <Item name="Demand Power" value={<Val v={live.btms_demand_power_kw} unit="kW" fixed={1} />} />
+          <Item name="Pack Voltage (BMS)" value={<Val v={live.bms_pack_voltage_v} unit="V" />} />
+          <Item name="BMS Life Counter" value={live.bms_life_counter ?? "–"} />
         </Section>
+
+        {/* Full-width Alarms Section */}
+        <div className="md:col-span-2">
+          <Section title="Alarms & Warnings">
+            {Object.entries(live)
+              .filter(([key]) => key.startsWith("alarms_"))
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([key, value]) => (
+                <div
+                  key={key}
+                  className="flex justify-between items-center bg-gray-800/40 px-3 py-2 rounded-md text-sm border border-orange-500/20"
+                >
+                  <span className="text-gray-300 capitalize">
+                    {key.replace("alarms_", "").replace(/_/g, " ")}
+                  </span>
+                  <span
+                    className={`px-3 py-1 rounded-md text-xs font-semibold ${
+                      value
+                        ? "bg-red-600/20 text-red-300"
+                        : "bg-emerald-600/20 text-emerald-300"
+                    }`}
+                  >
+                    {value ? "ACTIVE" : "OK"}
+                  </span>
+                </div>
+              ))}
+            {Object.keys(live).filter((k) => k.startsWith("alarms_")).length === 0 && (
+              <div className="text-gray-500 text-center py-4">No alarm data available</div>
+            )}
+          </Section>
+        </div>
       </div>
     </div>
   );
