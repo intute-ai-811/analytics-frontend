@@ -29,7 +29,18 @@ export default function DatabaseLogs() {
   const [totalExported, setTotalExported] = useState(0);
   const loadMoreRef = useRef(null);
 
-  /* ========================= ALL COLUMNS (including new BTMS & Motor Raw) ========================= */
+  /* ========================= RAW MODAL STATE ========================= */
+  const [rawModal, setRawModal] = useState(null); // { type: 'temp' | 'cell', values: [] }
+
+  const openRawModal = (type, values) => {
+    setRawModal({
+      type,
+      values,
+      timestamp: null
+    });
+  };
+
+  /* ========================= ALL COLUMNS ========================= */
   const COLUMNS = [
     { key: "recorded_at", label: "Timestamp", alwaysVisible: true },
 
@@ -226,9 +237,9 @@ export default function DatabaseLogs() {
       const csvHeaders = visibleCols.map(c => c.label);
       const csvRows = data.map(row =>
         visibleCols.map(col => {
-          const val = formatValue(row[col.key], col.key);
-          if (val == null || val === "") return "";
-          return String(val);
+          const val = row[col.key];
+          if (Array.isArray(val)) return val.join(" | ");
+          return val ?? "";
         })
       );
 
@@ -290,26 +301,44 @@ export default function DatabaseLogs() {
     return () => observer.disconnect();
   }, [rows.length, hasMore, loading]);
 
-  /* ========================= FORMATTING HELPER (with optional enhancements) ========================= */
+  /* ========================= FORMATTING HELPER ========================= */
   const formatValue = (val, key) => {
     if (val == null) return "-";
 
-    // Arrays (cell voltages, temp sensors)
-    if (Array.isArray(val)) return val.join(" | ");
+    if (Array.isArray(val)) {
+      if (key === "cell_voltages") {
+        return (
+          <button
+            className="text-orange-400 underline font-semibold"
+            onClick={() => openRawModal("cell", val)}
+          >
+            View ({val.length})
+          </button>
+        );
+      }
+      if (key === "temp_sensors") {
+        return (
+          <button
+            className="text-orange-400 underline font-semibold"
+            onClick={() => openRawModal("temp", val)}
+          >
+            View ({val.length})
+          </button>
+        );
+      }
+      return val.join(" | ");
+    }
 
-    // Binary relay / request states
     if (key === "btms_hv_request" || key === "bms_hv_relay_state" || key === "btms_hv_relay_state") {
       if (val === 1) return "ON / CLOSED";
       if (val === 0) return "OFF / OPEN";
       return val;
     }
 
-    // Motor status word → hex
     if (key === "motor_status_word") {
       return `0x${Number(val).toString(16).toUpperCase()}`;
     }
 
-    // Default: just stringify
     return String(val);
   };
 
@@ -318,6 +347,42 @@ export default function DatabaseLogs() {
 
   return (
     <div className="space-y-6 pb-8">
+      {/* RAW MODAL - Optimized for 144 temps / 192 cells */}
+      {rawModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 overflow-hidden">
+          <div className="bg-gray-900 w-full max-w-6xl h-[90vh] max-h-[90vh] rounded-xl border border-orange-500/40 flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-orange-500/20 flex-shrink-0">
+              <h2 className="text-xl font-bold text-orange-400">
+                {rawModal.type === "temp"
+                  ? `Temperature Sensors (Raw) • ${rawModal.values.length} values`
+                  : `Cell Voltages (Raw) • ${rawModal.values.length} values`}
+              </h2>
+              <button onClick={() => setRawModal(null)} className="text-gray-400 text-2xl hover:text-gray-200">✕</button>
+            </div>
+
+            {/* Scrollable Grid Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-4">
+                {rawModal.values.map((v, i) => (
+                  <div
+                    key={i}
+                    className="bg-gray-800 rounded-lg px-4 py-3 text-center border border-gray-700"
+                  >
+                    <div className="text-xs text-gray-400">
+                      {rawModal.type === "temp" ? `T${i + 1}` : `C${i + 1}`}
+                    </div>
+                    <div className="text-base text-orange-200 font-mono mt-1">
+                      {v == null ? "–" : Number(v).toFixed(3)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h2 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
         Raw Telemetry Logs
       </h2>
@@ -473,9 +538,7 @@ export default function DatabaseLogs() {
                   <tr key={i} className="hover:bg-orange-500/5 transition">
                     {visibleColumns.map(col => (
                       <td key={col.key} className="px-5 py-3.5 text-orange-100">
-                        <pre className="font-mono whitespace-pre-wrap break-words text-xs">
-                          {formatValue(row[col.key], col.key)}
-                        </pre>
+                        {formatValue(row[col.key], col.key)}
                       </td>
                     ))}
                   </tr>

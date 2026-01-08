@@ -1,7 +1,36 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 
-const LIVE_THRESHOLD_MS = 15000; // 15 seconds
+const LIVE_THRESHOLD_MS = 15000;
+
+// Local module slice helper
+const moduleSlice = (arr = [], perModule, mIndex) => {
+  if (!Array.isArray(arr)) return [];
+  const start = mIndex * perModule;
+  return arr.slice(start, start + perModule);
+};
+
+// Color helpers (matching mobile app exactly)
+const tempColor = (t) => {
+  if (t == null || !Number.isFinite(t)) return "#94a3b8";
+  if (t <= 45) return "#22c55e"; // green
+  if (t <= 55) return "#facc15"; // yellow
+  return "#ef4444"; // red
+};
+
+const cellBoxColor = (v, avg) => {
+  if (v == null || avg == null) return "#94a3b8";
+  const delta = v - avg;
+  if (delta > 0.10) return "#ef4444";
+  if (delta > 0.05) return "#f59e0b";
+  if (delta < -0.10) return "#3b82f6";
+  if (delta < -0.05) return "#22c55e";
+  return "#94a3b8";
+};
+
+// Format helpers
+const fmt1 = (n) => (n == null || !Number.isFinite(n) ? "–" : n.toFixed(1));
+const fmt3 = (n) => (n == null || !Number.isFinite(n) ? "–" : n.toFixed(3));
 
 export default function LiveView() {
   const { id } = useParams();
@@ -9,6 +38,8 @@ export default function LiveView() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const [showTempModal, setShowTempModal] = useState(false);
+  const [showVoltageModal, setShowVoltageModal] = useState(false);
 
   const eventSourceRef = useRef(null);
 
@@ -31,19 +62,15 @@ export default function LiveView() {
         const res = await fetch(`/api/vehicles/${id}/live`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!res.ok) {
           const text = await res.text();
           throw new Error(`Failed: ${res.status} ${text || res.statusText}`);
         }
-
         const data = await res.json();
         setLive(data);
-
         if (data.recorded_at) {
           setLastUpdateTime(new Date(data.recorded_at));
         }
-
         setError(null);
       } catch (err) {
         console.error("Snapshot error:", err);
@@ -55,6 +82,7 @@ export default function LiveView() {
 
     fetchSnapshot();
 
+    // Clean up any existing EventSource
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
@@ -66,14 +94,10 @@ export default function LiveView() {
       try {
         const data = JSON.parse(event.data);
         setLive(data);
-
         if (data.recorded_at) {
           const newTime = new Date(data.recorded_at);
-          setLastUpdateTime((prev) =>
-            !prev || newTime > prev ? newTime : prev
-          );
+          setLastUpdateTime(newTime);
         }
-
         setError(null);
       } catch (e) {
         console.error("Parse error:", e);
@@ -98,10 +122,10 @@ export default function LiveView() {
     };
   }, [id]);
 
-  const isActivelyLive = (() => {
-    if (!lastUpdateTime) return false;
-    return Date.now() - lastUpdateTime.getTime() < LIVE_THRESHOLD_MS;
-  })();
+  // Fixed: recomputes on every render when lastUpdateTime changes
+  const isActivelyLive = lastUpdateTime
+    ? Date.now() - lastUpdateTime.getTime() < LIVE_THRESHOLD_MS
+    : false;
 
   const formatTimestamp = (date) =>
     date
@@ -123,9 +147,7 @@ export default function LiveView() {
     const totalMinutes = Math.round(hours * 60);
     const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
-
     if (hrs === 0) return <span className="text-orange-300 font-semibold">{mins} mins</span>;
-
     return (
       <span className="text-orange-300 font-semibold">
         {hrs} hr{mins > 0 ? ` ${mins} mins` : ""}
@@ -153,6 +175,32 @@ export default function LiveView() {
     </div>
   );
 
+  // Pack-level stats
+  const tempPackStats = useMemo(() => {
+    const temps = live.temp_sensors;
+    if (!Array.isArray(temps) || temps.length === 0) return { min: null, avg: null, max: null };
+    const valid = temps.filter((v) => v != null);
+    if (valid.length === 0) return { min: null, avg: null, max: null };
+    return {
+      min: Math.min(...valid),
+      max: Math.max(...valid),
+      avg: valid.reduce((a, b) => a + b, 0) / valid.length,
+    };
+  }, [live.temp_sensors]);
+
+  const voltagePackStats = useMemo(() => {
+    const cells = live.cell_voltages;
+    if (!Array.isArray(cells) || cells.length === 0)
+      return { min: null, avg: null, max: null, outliers: 0 };
+    const valid = cells.filter((v) => v != null);
+    if (valid.length === 0) return { min: null, avg: null, max: null, outliers: 0 };
+    const min = Math.min(...valid);
+    const max = Math.max(...valid);
+    const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
+    const outliers = valid.filter((v) => Math.abs(v - avg) > 0.10).length;
+    return { min, max, avg, outliers };
+  }, [live.cell_voltages]);
+
   if (loading && !Object.keys(live).length) {
     return <div className="text-center py-12 text-orange-200">Loading live data…</div>;
   }
@@ -163,12 +211,11 @@ export default function LiveView() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Compact Header */}
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent mb-3">
           Live Vehicle Data
         </h1>
-
         <div className="flex items-center justify-between">
           <span
             className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold ${
@@ -180,7 +227,6 @@ export default function LiveView() {
             <span className={isActivelyLive ? "animate-pulse" : ""}>●</span>
             {isActivelyLive ? "LIVE" : "Last Known"}
           </span>
-          
           <div className="text-right">
             <div className="text-xs text-gray-500">Updated</div>
             <div className="text-sm text-orange-300 font-medium">
@@ -188,7 +234,6 @@ export default function LiveView() {
             </div>
           </div>
         </div>
-
         {error && (
           <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2 mt-3">
             ⚠ {error}
@@ -196,9 +241,8 @@ export default function LiveView() {
         )}
       </div>
 
-      {/* 2-Column Grid */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Battery + Basic BMS Data */}
         <Section title="Battery / BMS / Charger">
           <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
           <Item name="Battery Status" value={live.battery_status ?? "–"} />
@@ -206,23 +250,30 @@ export default function LiveView() {
           <Item name="DC Output Current" value={<Val v={live.dc_current_a} unit="A" />} />
           <Item name="Output Power" value={<Val v={live.output_power_kw} unit="kW" />} />
           <Item name="Charging Current" value={<Val v={live.charging_current_a} unit="A" />} />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Item
-              key={`temp-${i}`}
-              name={`Temp Sensor Module ${i + 1}`}
-              value={<Val v={live.temp_sensors?.[i]} unit="°C" />}
-            />
-          ))}
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Item
-              key={`volt-${i}`}
-              name={`Cell Voltage Module ${i + 1}`}
-              value={<Val v={live.cell_voltages?.[i]} unit="V" fixed={3} />}
-            />
-          ))}
+          <Item
+            name="Temperature Sensors"
+            value={
+              <button
+                onClick={() => setShowTempModal(true)}
+                className="text-orange-400 font-semibold underline hover:text-orange-300 transition"
+              >
+                View All (144) → Modules
+              </button>
+            }
+          />
+          <Item
+            name="Cell Voltages"
+            value={
+              <button
+                onClick={() => setShowVoltageModal(true)}
+                className="text-emerald-400 font-semibold underline hover:text-emerald-300 transition"
+              >
+                View All (192) → Modules
+              </button>
+            }
+          />
         </Section>
 
-        {/* Motor & MCU + New Raw Fields */}
         <Section title="Motor & MCU">
           <Item name="Torque" value={<Val v={live.motor_torque_nm} unit="Nm" />} />
           <Item name="Operation Mode" value={live.motor_operation_mode ?? "–"} />
@@ -234,17 +285,28 @@ export default function LiveView() {
           <Item name="AC Voltage" value={<Val v={live.motor_ac_voltage_v} unit="V" />} />
           <Item name="MCU Enable State" value={live.mcu_enable_state ?? "–"} />
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
-
-          {/* New Motor Raw Fields */}
-          <Item name="Status Word" value={live.motor_status_word != null ? `0x${Number(live.motor_status_word).toString(16).toUpperCase()}` : "–"} />
+          <Item
+            name="Status Word"
+            value={
+              live.motor_status_word != null
+                ? `0x${Number(live.motor_status_word).toString(16).toUpperCase()}`
+                : "–"
+            }
+          />
           <Item name="Frequency Raw" value={live.motor_freq_raw ?? "–"} />
-          <Item name="Total Wattage" value={<Val v={live.motor_total_wattage_w} unit="W" fixed={0} />} />
+          <Item
+            name="Total Wattage"
+            value={<Val v={live.motor_total_wattage_w} unit="W" fixed={0} />}
+          />
           <Item name="DC Input Voltage Raw" value={live.motor_dc_input_voltage_raw ?? "–"} />
           <Item name="AC Output Voltage Raw" value={live.motor_ac_output_voltage_raw ?? "–"} />
         </Section>
 
         <Section title="Peripherals Live Data">
-          <Item name="Radiator Temperature" value={<Val v={live.radiator_temp_c} unit="°C" fixed={1} />} />
+          <Item
+            name="Radiator Temperature"
+            value={<Val v={live.radiator_temp_c} unit="°C" fixed={1} />}
+          />
           <Item name="Hydraulic Oil Temperature" value="–" />
           <Item name="Hydraulic Pump RPM" value="–" />
         </Section>
@@ -252,11 +314,16 @@ export default function LiveView() {
         <Section title="ODO / Trip Details">
           <Item name="Total Running Hours" value={<HoursToHrMin hours={live.total_hours} />} />
           <Item name="Last Trip Hours" value={<HoursToHrMin hours={live.last_trip_hrs} />} />
-          <Item name="Total kWh Consumed" value={<Val v={live.total_kwh} fixed={1} unit=" kWh" />} />
-          <Item name="kWh Used in Last Trip" value={<Val v={live.last_trip_kwh} fixed={1} unit=" kWh" />} />
+          <Item
+            name="Total kWh Consumed"
+            value={<Val v={live.total_kwh} fixed={1} unit=" kWh" />}
+          />
+          <Item
+            name="kWh Used in Last Trip"
+            value={<Val v={live.last_trip_kwh} fixed={1} unit=" kWh" />}
+          />
         </Section>
 
-        {/* DC-DC Converter */}
         <Section title="DC-DC Converter">
           <Item name="Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit="V" />} />
           <Item name="Input Current" value={<Val v={live.dcdc_input_current_a} unit="A" />} />
@@ -270,30 +337,73 @@ export default function LiveView() {
           />
           <Item name="Output Voltage" value={<Val v={live.dcdc_output_voltage_v} unit="V" />} />
           <Item name="Output Current" value={<Val v={live.dcdc_output_current_a} unit="A" />} />
-          <Item name="Pri A MOSFET Temp" value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />} />
-          <Item name="Pri C MOSFET Temp" value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />} />
-          <Item name="Sec LS MOSFET Temp" value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />} />
-          <Item name="Sec HS MOSFET Temp" value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />} />
+          <Item
+            name="Pri A MOSFET Temp"
+            value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />}
+          />
+          <Item
+            name="Pri C MOSFET Temp"
+            value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />}
+          />
+          <Item
+            name="Sec LS MOSFET Temp"
+            value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />}
+          />
+          <Item
+            name="Sec HS MOSFET Temp"
+            value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />}
+          />
           <Item name="Overcurrent Fault Count" value={live.dcdc_occurrence_count ?? "–"} />
         </Section>
 
-        {/* BTMS Section */}
         <Section title="BTMS (Thermal Management)">
           <Item name="Command Mode" value={live.btms_command_mode ?? "–"} />
-          <Item name="Status Mode" value={live.btms_status_mode != null ? live.btms_status_mode : "–"} />
-          <Item name="HV Request" value={live.btms_hv_request === 1 ? "ON" : live.btms_hv_request === 0 ? "OFF" : "–"} />
+          <Item
+            name="Status Mode"
+            value={live.btms_status_mode != null ? live.btms_status_mode : "–"}
+          />
+          <Item
+            name="HV Request"
+            value={
+              live.btms_hv_request === 1
+                ? "ON"
+                : live.btms_hv_request === 0
+                ? "OFF"
+                : "–"
+            }
+          />
           <Item name="Charge Status" value={live.btms_charge_status ?? "–"} />
-          <Item name="HV Relay State (BMS)" value={live.bms_hv_relay_state === 1 ? "CLOSED" : live.bms_hv_relay_state === 0 ? "OPEN" : "–"} />
-          <Item name="HV Relay State (BTMS)" value={live.btms_hv_relay_state === 1 ? "CLOSED" : live.btms_hv_relay_state === 0 ? "OPEN" : "–"} />
+          <Item
+            name="HV Relay State (BMS)"
+            value={
+              live.bms_hv_relay_state === 1
+                ? "CLOSED"
+                : live.bms_hv_relay_state === 0
+                ? "OPEN"
+                : "–"
+            }
+          />
+          <Item
+            name="HV Relay State (BTMS)"
+            value={
+              live.btms_hv_relay_state === 1
+                ? "CLOSED"
+                : live.btms_hv_relay_state === 0
+                ? "OPEN"
+                : "–"
+            }
+          />
           <Item name="Target Temp" value={<Val v={live.btms_target_temp_c} unit="°C" />} />
           <Item name="Inlet Temp" value={<Val v={live.btms_inlet_temp_c} unit="°C" />} />
           <Item name="Outlet Temp" value={<Val v={live.btms_outlet_temp_c} unit="°C" />} />
-          <Item name="Demand Power" value={<Val v={live.btms_demand_power_kw} unit="kW" fixed={1} />} />
+          <Item
+            name="Demand Power"
+            value={<Val v={live.btms_demand_power_kw} unit="kW" fixed={1} />}
+          />
           <Item name="Pack Voltage (BMS)" value={<Val v={live.bms_pack_voltage_v} unit="V" />} />
           <Item name="BMS Life Counter" value={live.bms_life_counter ?? "–"} />
         </Section>
 
-        {/* Full-width Alarms Section */}
         <div className="md:col-span-2">
           <Section title="Alarms & Warnings">
             {Object.entries(live)
@@ -324,6 +434,245 @@ export default function LiveView() {
           </Section>
         </div>
       </div>
+
+      {/* ================= TEMPERATURE SENSORS MODAL ================= */}
+      {showTempModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowTempModal(false)}
+        >
+          <div
+            className="bg-gradient-to-br from-gray-900 via-gray-900 to-orange-950/30 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden border border-orange-500/40 shadow-2xl shadow-orange-500/20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative px-6 py-5 bg-gradient-to-r from-orange-900/40 via-gray-800/70 to-amber-900/40 border-b border-orange-500/30">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-300 via-orange-400 to-amber-400 bg-clip-text text-transparent">
+                    Temperature Sensors
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-1 flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 bg-orange-400 rounded-full animate-pulse"></span>
+                    8 Modules × 18 Sensors = 144 Total Points
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowTempModal(false)}
+                  className="text-gray-400 hover:text-white hover:rotate-90 transition-all duration-300 text-3xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Super Compact Stats */}
+            <div className="p-4 bg-gradient-to-b from-gray-800/60 to-gray-800/30 border-b border-orange-500/20">
+              <div className="flex flex-wrap gap-3 justify-center mb-3">
+                <div
+                  className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner"
+                  style={{ borderColor: tempColor(tempPackStats.max) }}
+                >
+                  <div className="text-xs text-gray-400">Max</div>
+                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.max) }}>
+                    {fmt1(tempPackStats.max)}°C
+                  </div>
+                </div>
+                <div
+                  className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner"
+                  style={{ borderColor: tempColor(tempPackStats.avg) }}
+                >
+                  <div className="text-xs text-gray-400">Avg</div>
+                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.avg) }}>
+                    {fmt1(tempPackStats.avg)}°C
+                  </div>
+                </div>
+                <div
+                  className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner"
+                  style={{ borderColor: tempColor(tempPackStats.min) }}
+                >
+                  <div className="text-xs text-gray-400">Min</div>
+                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.min) }}>
+                    {fmt1(tempPackStats.min)}°C
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center text-xs">
+                <div className="px-3 py-1.5 rounded border border-green-500 bg-green-500/10 text-green-400">
+                  ≤45°C Optimal
+                </div>
+                <div className="px-3 py-1.5 rounded border border-yellow-400 bg-yellow-400/10 text-yellow-400">
+                  45–55°C Elevated
+                </div>
+                <div className="px-3 py-1.5 rounded border border-red-500 bg-red-500/10 text-red-400">
+                  ≥55°C Critical
+                </div>
+              </div>
+            </div>
+
+            {/* Dense Grid */}
+            <div className="overflow-y-auto max-h-[58vh] p-4">
+              {Array.from({ length: 8 }, (_, i) => {
+                const mod = moduleSlice(live.temp_sensors, 18, i);
+                const valid = mod.filter((t) => t != null);
+                const modMax = valid.length > 0 ? Math.max(...valid) : null;
+                const modMin = valid.length > 0 ? Math.min(...valid) : null;
+
+                return (
+                  <div
+                    key={i}
+                    className="mb-4 bg-gray-800/40 rounded-lg p-3 border border-orange-500/20"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-base font-bold text-orange-300">Module {i + 1}</h3>
+                      <div className="flex gap-2 text-xs">
+                        <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/30">
+                          Min: {fmt1(modMin)}°C
+                        </span>
+                        <span className="px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
+                          Max: {fmt1(modMax)}°C
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-9 sm:grid-cols-12 md:grid-cols-15 lg:grid-cols-18 gap-1.5">
+                      {mod.map((t, j) => (
+                        <div
+                          key={j}
+                          className="bg-gray-900/60 border-2 rounded-md px-1.5 py-1.5 text-center hover:scale-105 transition-all"
+                          style={{ borderColor: tempColor(t) }}
+                        >
+                          <div className="text-[9px] text-gray-500">#{i * 18 + j + 1}</div>
+                          <div className="text-xs font-bold" style={{ color: tempColor(t) }}>
+                            {fmt1(t)}
+                          </div>
+                          <div className="text-[8px] text-gray-500">°C</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= CELL VOLTAGES MODAL ================= */}
+      {showVoltageModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowVoltageModal(false)}
+        >
+          <div
+            className="bg-gradient-to-br from-gray-900 via-gray-900 to-emerald-950/30 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden border border-emerald-500/40 shadow-2xl shadow-emerald-500/20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative px-6 py-5 bg-gradient-to-r from-emerald-900/40 via-gray-800/70 to-teal-900/40 border-b border-emerald-500/30">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-300 via-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                    Cell Voltages
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-1 flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                    8 Modules × 24 Cells = 192 Total Points
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowVoltageModal(false)}
+                  className="text-gray-400 hover:text-white hover:rotate-90 transition-all duration-300 text-3xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Super Compact Stats */}
+            <div className="p-4 bg-gradient-to-b from-gray-800/60 to-gray-800/30 border-b border-emerald-500/20">
+              <div className="flex flex-wrap gap-3 justify-center mb-3">
+                <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-red-500">
+                  <div className="text-xs text-gray-400">Max</div>
+                  <div className="text-lg font-bold text-red-400">{fmt3(voltagePackStats.max)}V</div>
+                </div>
+                <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-yellow-400">
+                  <div className="text-xs text-gray-400">Avg</div>
+                  <div className="text-lg font-bold text-yellow-400">{fmt3(voltagePackStats.avg)}V</div>
+                </div>
+                <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-green-500">
+                  <div className="text-xs text-gray-400">Min</div>
+                  <div className="text-lg font-bold text-green-400">{fmt3(voltagePackStats.min)}V</div>
+                </div>
+                <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-red-500">
+                  <div className="text-xs text-gray-400">Outliers</div>
+                  <div className="text-lg font-bold text-red-400">
+                    ±0.10V: {voltagePackStats.outliers}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center text-xs">
+                <div className="px-3 py-1.5 rounded border border-red-500 bg-red-500/10 text-red-400">
+                  ≥ +0.10V Critical High
+                </div>
+                <div className="px-3 py-1.5 rounded border border-amber-500 bg-amber-500/10 text-amber-400">
+                  +0.05 to +0.10V High
+                </div>
+                <div className="px-3 py-1.5 rounded border border-green-500 bg-green-500/10 text-green-400">
+                  -0.05 to -0.10V Low
+                </div>
+                <div className="px-3 py-1.5 rounded border border-blue-500 bg-blue-500/10 text-blue-400">
+                  ≤ -0.10V Critical Low
+                </div>
+              </div>
+            </div>
+
+            {/* Dense Grid */}
+            <div className="overflow-y-auto max-h-[58vh] p-4">
+              {Array.from({ length: 8 }, (_, i) => {
+                const mod = moduleSlice(live.cell_voltages, 24, i);
+                const valid = mod.filter((v) => v != null);
+                const modMax = valid.length > 0 ? Math.max(...valid) : null;
+                const modMin = valid.length > 0 ? Math.min(...valid) : null;
+
+                return (
+                  <div
+                    key={i}
+                    className="mb-4 bg-gray-800/40 rounded-lg p-3 border border-emerald-500/20"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-base font-bold text-emerald-300">Module {i + 1}</h3>
+                      <div className="flex gap-2 text-xs">
+                        <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/30">
+                          Min: {fmt3(modMin)}V
+                        </span>
+                        <span className="px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
+                          Max: {fmt3(modMax)}V
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-8 sm:grid-cols-12 md:grid-cols-16 lg:grid-cols-24 gap-1.5">
+                      {mod.map((v, j) => (
+                        <div
+                          key={j}
+                          className="bg-gray-900/60 border-2 rounded-md px-1.5 py-1.5 text-center hover:scale-105 transition-all"
+                          style={{ borderColor: cellBoxColor(v, voltagePackStats.avg) }}
+                        >
+                          <div className="text-[9px] text-gray-500">#{i * 24 + j + 1}</div>
+                          <div
+                            className="text-xs font-bold"
+                            style={{ color: cellBoxColor(v, voltagePackStats.avg) }}
+                          >
+                            {fmt3(v)}
+                          </div>
+                          <div className="text-[8px] text-gray-500">V</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
