@@ -74,7 +74,7 @@ export default function VCUMaster() {
     setForm({
       vcu_make: r.vcu_make || "",
       vcu_model: r.vcu_model || "",
-      serial_number: r.serial_number || "",
+      serial_number: r.serial_number?.toUpperCase() || "", // Ensure uppercase on load
       vcu_specs: r.vcu_specs || "",
     });
     setShowModal(true);
@@ -90,9 +90,9 @@ export default function VCUMaster() {
     }
 
     const payload = {
-      vcu_make: form.vcu_make.trim(),
+      vcu_make: form.vcu_make.trim().toUpperCase(),
       vcu_model: form.vcu_model.trim(),
-      serial_number: form.serial_number.trim(),
+      serial_number: form.serial_number.trim().toUpperCase(),
       vcu_specs: form.vcu_specs?.trim() || null,
     };
 
@@ -164,7 +164,6 @@ export default function VCUMaster() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
       <div className="max-w-7xl mx-auto px-6 py-10 space-y-8">
-
         <div className="text-center">
           <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
             VCU Master
@@ -228,7 +227,7 @@ export default function VCUMaster() {
                   <tr key={r.vcu_id} className="border-t border-orange-500/10">
                     <td className="px-6 py-4 font-bold">{r.vcu_make}</td>
                     <td className="px-6 py-4">{r.vcu_model}</td>
-                    <td className="px-6 py-4 font-mono text-sm">
+                    <td className="px-6 py-4 font-mono text-sm uppercase">
                       {r.serial_number}
                     </td>
                     <td className="px-6 py-4 text-sm">{r.vcu_specs || "-"}</td>
@@ -265,7 +264,10 @@ export default function VCUMaster() {
                 <Input
                   label="VCU Make *"
                   value={form.vcu_make}
-                  onChange={(v) => setForm({ ...form, vcu_make: v })}
+                  onChange={(v) =>
+                    setForm({ ...form, vcu_make: v.toUpperCase() })
+                  }
+                  className="uppercase tracking-wide"
                 />
                 <Input
                   label="VCU Model *"
@@ -275,7 +277,15 @@ export default function VCUMaster() {
                 <Input
                   label="Serial Number *"
                   value={form.serial_number}
-                  onChange={(v) => setForm({ ...form, serial_number: v })}
+                  onChange={(v) => {
+                    // Only allow alphanumeric + convert to uppercase
+                    const cleaned = v
+                      .replace(/[^A-Z0-9]/gi, "")
+                      .toUpperCase();
+                    setForm({ ...form, serial_number: cleaned });
+                  }}
+                  className="uppercase font-mono tracking-wide"
+                  placeholder="e.g. ABC123XYZ789"
                 />
                 <TextArea
                   label="VCU Specs"
@@ -306,15 +316,16 @@ export default function VCUMaster() {
   );
 }
 
-/* ===================== Reusable ===================== */
-function Input({ label, value, onChange }) {
+/* ===================== Reusable Components ===================== */
+function Input({ label, value, onChange, className = "", ...props }) {
   return (
     <label className="block">
       <span className="text-orange-300 text-sm">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30"
+        className={`mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 text-white ${className}`}
+        {...props}
       />
     </label>
   );
@@ -328,7 +339,7 @@ function TextArea({ label, value, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
-        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30"
+        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 text-white"
       />
     </label>
   );

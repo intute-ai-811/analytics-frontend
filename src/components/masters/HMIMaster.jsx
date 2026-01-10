@@ -1,8 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, Download, Plus, Pencil, Trash2, AlertCircle } from "lucide-react";
+import {
+  Plus,
+  Download,
+  Search,
+  Pencil,
+  Trash2,
+  AlertCircle,
+} from "lucide-react";
 import axios from "axios";
 
-/* ===================== API ===================== */
+// API Base URLs
 const API_BASE = "http://localhost:5000/api/hmi";
 
 const getAuthHeaders = () => {
@@ -22,7 +29,7 @@ export default function HMIMaster() {
   const [form, setForm] = useState({
     hmi_make: "",
     hmi_model: "",
-    serial_number: "",
+    imei_number: "",
     hmi_specs: "",
   });
 
@@ -51,7 +58,7 @@ export default function HMIMaster() {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
     return rows.filter((r) =>
-      `${r.hmi_make} ${r.hmi_model} ${r.serial_number}`
+      `${r.hmi_make} ${r.hmi_model} ${r.imei_number}`
         .toLowerCase()
         .includes(q)
     );
@@ -63,7 +70,7 @@ export default function HMIMaster() {
     setForm({
       hmi_make: "",
       hmi_model: "",
-      serial_number: "",
+      imei_number: "",
       hmi_specs: "",
     });
     setShowModal(true);
@@ -74,7 +81,7 @@ export default function HMIMaster() {
     setForm({
       hmi_make: r.hmi_make || "",
       hmi_model: r.hmi_model || "",
-      serial_number: r.serial_number || "",
+      imei_number: r.imei_number || "",
       hmi_specs: r.hmi_specs || "",
     });
     setShowModal(true);
@@ -85,14 +92,14 @@ export default function HMIMaster() {
     if (!form.hmi_make.trim() || !form.hmi_model.trim()) {
       return alert("HMI Make and Model are required");
     }
-    if (!form.serial_number.trim()) {
-      return alert("Serial number is required");
+    if (!form.imei_number.trim()) {
+      return alert("IMEI number is required");
     }
 
     const payload = {
-      hmi_make: form.hmi_make.trim(),
+      hmi_make: form.hmi_make.trim().toUpperCase(),      // final safety
       hmi_model: form.hmi_model.trim(),
-      serial_number: form.serial_number.trim(),
+      imei_number: form.imei_number.trim(),
       hmi_specs: form.hmi_specs?.trim() || null,
     };
 
@@ -132,19 +139,19 @@ export default function HMIMaster() {
       });
       setRows((prev) => prev.filter((r) => r.hmi_id !== id));
     } catch (e) {
-      alert(e.response?.data?.error || "Cannot delete HMI");
+      alert(e.response?.data?.error || "Cannot delete HMI (likely in use)");
     }
   };
 
-  /* ===================== CSV ===================== */
+  /* ===================== CSV EXPORT ===================== */
   const exportCSV = () => {
-    const headers = "HMI Make,HMI Model,Serial Number,HMI Specs\n";
+    const headers = "HMI Make,HMI Model,IMEI Number,HMI Specs\n";
     const csv = rows
       .map((r) =>
         [
           r.hmi_make,
           r.hmi_model,
-          r.serial_number,
+          r.imei_number,
           r.hmi_specs || "",
         ]
           .map((v) => `"${v}"`)
@@ -164,12 +171,11 @@ export default function HMIMaster() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
       <div className="max-w-7xl mx-auto px-6 py-10 space-y-8">
-
         <div className="text-center">
           <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
             HMI Master
           </h1>
-          <p className="text-orange-300">Physical Human–Machine Interfaces</p>
+          <p className="text-orange-300">Human–Machine Interfaces (IMEI Tracked)</p>
         </div>
 
         {/* Toolbar */}
@@ -179,7 +185,7 @@ export default function HMIMaster() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by make, model, or serial..."
+              placeholder="Search by make, model, or IMEI..."
               className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30"
             />
           </div>
@@ -209,7 +215,7 @@ export default function HMIMaster() {
           <table className="w-full">
             <thead className="bg-black/50">
               <tr>
-                {["Make", "Model", "Serial Number", "Specs", "Actions"].map((h) => (
+                {["Make", "Model", "IMEI Number", "Specs", "Actions"].map((h) => (
                   <th key={h} className="px-6 py-4 text-left text-orange-200">
                     {h}
                   </th>
@@ -229,7 +235,7 @@ export default function HMIMaster() {
                     <td className="px-6 py-4 font-bold">{r.hmi_make}</td>
                     <td className="px-6 py-4">{r.hmi_model}</td>
                     <td className="px-6 py-4 font-mono text-sm">
-                      {r.serial_number}
+                      {r.imei_number}
                     </td>
                     <td className="px-6 py-4 text-sm">{r.hmi_specs || "-"}</td>
                     <td className="px-6 py-4">
@@ -265,7 +271,10 @@ export default function HMIMaster() {
                 <Input
                   label="HMI Make *"
                   value={form.hmi_make}
-                  onChange={(v) => setForm({ ...form, hmi_make: v })}
+                  onChange={(v) =>
+                    setForm({ ...form, hmi_make: v.toUpperCase() })
+                  }
+                  className="uppercase tracking-wide"
                 />
                 <Input
                   label="HMI Model *"
@@ -273,9 +282,9 @@ export default function HMIMaster() {
                   onChange={(v) => setForm({ ...form, hmi_model: v })}
                 />
                 <Input
-                  label="Serial Number *"
-                  value={form.serial_number}
-                  onChange={(v) => setForm({ ...form, serial_number: v })}
+                  label="IMEI Number *"
+                  value={form.imei_number}
+                  onChange={(v) => setForm({ ...form, imei_number: v })}
                 />
                 <TextArea
                   label="HMI Specs"
@@ -301,21 +310,21 @@ export default function HMIMaster() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
 }
 
-/* ===================== Reusable ===================== */
-function Input({ label, value, onChange }) {
+/* ===================== Reusable Components ===================== */
+function Input({ label, value, onChange, className = "", ...props }) {
   return (
     <label className="block">
       <span className="text-orange-300 text-sm">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30"
+        className={`mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 text-white ${className}`}
+        {...props}
       />
     </label>
   );
@@ -329,7 +338,7 @@ function TextArea({ label, value, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
-        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30"
+        className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 text-white"
       />
     </label>
   );

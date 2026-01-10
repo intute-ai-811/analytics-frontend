@@ -257,7 +257,7 @@ export default function LiveView() {
                 onClick={() => setShowTempModal(true)}
                 className="text-orange-400 font-semibold underline hover:text-orange-300 transition"
               >
-                View All (144) → Modules
+                View All → Modules
               </button>
             }
           />
@@ -268,7 +268,7 @@ export default function LiveView() {
                 onClick={() => setShowVoltageModal(true)}
                 className="text-emerald-400 font-semibold underline hover:text-emerald-300 transition"
               >
-                View All (192) → Modules
+                View All → Modules
               </button>
             }
           />
