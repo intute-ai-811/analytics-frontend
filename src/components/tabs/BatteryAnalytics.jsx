@@ -45,16 +45,9 @@ export default function BatteryAnalytics() {
     if (!data.length || selectedDate)
       return { energyUsed: null, maxCurrent: 0, maxTemp: 0, avgTemp: null };
 
-    const newest = data[0];
-    const oldest = data[data.length - 1];
-
-    let energyUsed = null;
-    const newKwh = Number(newest.total_kwh_consumed ?? 0);
-    const oldKwh = Number(oldest.total_kwh_consumed ?? 0);
-
-    if (newKwh >= oldKwh) {
-      energyUsed = newKwh - oldKwh;
-    }
+    const energyUsed = data
+      .map(d => Number(d.total_kwh_consumed || 0))
+      .reduce((a, b) => a + b, 0);
 
     const validAvgTemps = data
       .map(d => Number(d.avg_cell_temp_c ?? 0))
@@ -64,7 +57,7 @@ export default function BatteryAnalytics() {
       : null;
 
     return {
-      energyUsed,
+      energyUsed: energyUsed || null,
       maxCurrent: Math.max(...data.map(d => Number(d.max_op_dc_current_a ?? 0))),
       maxTemp: Math.max(...data.map(d => Number(d.max_cell_temp_c ?? 0))),
       avgTemp,
@@ -144,22 +137,18 @@ export default function BatteryAnalytics() {
             />
           </Section>
 
-          <Section title="Last Day">
-            <Stat
-              label="Energy Used"
-              value={latestTrip.kwh_last_trip ?? latestTrip.total_kwh_consumed}
-              unit="kWh"
-            />
+          <Section title="Latest Day">
+            <Stat label="Energy Used" value={latestTrip.total_kwh_consumed} unit="kWh" />
             <Stat
               label="Max Cell Temperature"
-              value={latestTrip.max_cell_temp_last_trip ?? latestTrip.max_cell_temp_c}
+              value={latestTrip.max_cell_temp_c}
               unit="°C"
               warn={45}
               danger={55}
             />
             <Stat
               label="Avg Cell Temperature"
-              value={latestTrip.avg_cell_temp_last_trip ?? latestTrip.avg_cell_temp_c}
+              value={latestTrip.avg_cell_temp_c}
               unit="°C"
               warn={42}
               danger={52}
@@ -212,41 +201,37 @@ export default function BatteryAnalytics() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Section title={`Data on ${selectedDate}`}>
-                <Stat
-                  label="Energy Used"
-                  value={latestTrip.kwh_last_trip ?? latestTrip.total_kwh_consumed}
-                  unit="kWh"
-                />
+                <Stat label="Energy Used" value={latestTrip.total_kwh_consumed} unit="kWh" />
                 <Stat
                   label="Max Cell Temperature"
-                  value={latestTrip.max_cell_temp_last_trip ?? latestTrip.max_cell_temp_c}
+                  value={latestTrip.max_cell_temp_c}
                   unit="°C"
                   warn={45}
                   danger={55}
                 />
                 <Stat
                   label="Avg Cell Temperature"
-                  value={latestTrip.avg_cell_temp_last_trip ?? latestTrip.avg_cell_temp_c}
+                  value={latestTrip.avg_cell_temp_c}
                   unit="°C"
                   warn={42}
                   danger={52}
                 />
               </Section>
-              
+
               <ChartCard title={`Battery Metrics on ${selectedDate}`}>
                 <BarChart
                   data={[
                     {
                       x: "Energy",
-                      y: Number(latestTrip.kwh_last_trip ?? latestTrip.total_kwh_consumed ?? 0),
+                      y: Number(latestTrip.total_kwh_consumed ?? 0),
                     },
                     {
                       x: "Max Temp",
-                      y: Number(latestTrip.max_cell_temp_last_trip ?? latestTrip.max_cell_temp_c ?? 0),
+                      y: Number(latestTrip.max_cell_temp_c ?? 0),
                     },
                     {
                       x: "Avg Temp",
-                      y: Number(latestTrip.avg_cell_temp_last_trip ?? latestTrip.avg_cell_temp_c ?? 0),
+                      y: Number(latestTrip.avg_cell_temp_c ?? 0),
                     },
                   ]}
                   band={{ warn: 45, danger: 55 }}
@@ -339,7 +324,6 @@ function LineChart({ data, band }) {
     return `${x},${y}`;
   }).join(" ");
 
-  // Create gradient area under line
   const areaPoints = `${pad},${height - pad} ${points} ${width - pad},${height - pad}`;
 
   return (
@@ -380,10 +364,7 @@ function LineChart({ data, band }) {
       })}
 
       {/* Area fill */}
-      <polygon
-        fill="url(#lineGradient)"
-        points={areaPoints}
-      />
+      <polygon fill="url(#lineGradient)" points={areaPoints} />
 
       {/* Trend line */}
       <polyline

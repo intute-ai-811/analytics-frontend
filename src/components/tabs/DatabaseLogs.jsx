@@ -30,15 +30,7 @@ export default function DatabaseLogs() {
   const loadMoreRef = useRef(null);
 
   /* ========================= RAW MODAL STATE ========================= */
-  const [rawModal, setRawModal] = useState(null); // { type: 'temp' | 'cell', values: [] }
-
-  const openRawModal = (type, values) => {
-    setRawModal({
-      type,
-      values,
-      timestamp: null
-    });
-  };
+  // (kept for possible future use, but currently not used)
 
   /* ========================= ALL COLUMNS ========================= */
   const COLUMNS = [
@@ -59,10 +51,6 @@ export default function DatabaseLogs() {
     { key: "max_temp_c", label: "Max Battery Temp (°C)" },
     { key: "min_temp_c", label: "Min Battery Temp (°C)" },
     { key: "avg_temp_c", label: "Avg Battery Temp (°C)" },
-
-    // Module Sensors
-    { key: "cell_voltages", label: "Cell Voltages (V)" },
-    { key: "temp_sensors", label: "Temp Sensors (°C)" },
 
     // Motor & Inverter
     { key: "motor_torque_limit", label: "Motor Torque Limit (Nm)" },
@@ -169,7 +157,6 @@ export default function DatabaseLogs() {
 
       const hasMoreHeader = res.headers.get("X-Has-More");
       setHasMore(hasMoreHeader === "true" || (!hasMoreHeader && newRows.length === 200));
-
     } catch (err) {
       console.error("Fetch error:", err);
       setError(err.message || "Failed to load data");
@@ -233,12 +220,20 @@ export default function DatabaseLogs() {
 
       setTotalExported(data.length);
 
-      const visibleCols = COLUMNS.filter(c => c.alwaysVisible || selectedCols.has(c.key));
+      // ────────────────────────────────────────────────
+      // Safety: explicitly exclude cell_voltages & temp_sensors
+      // ────────────────────────────────────────────────
+      const visibleCols = COLUMNS.filter(
+        c =>
+          (c.alwaysVisible || selectedCols.has(c.key)) &&
+          c.key !== "cell_voltages" &&
+          c.key !== "temp_sensors"
+      );
+
       const csvHeaders = visibleCols.map(c => c.label);
       const csvRows = data.map(row =>
         visibleCols.map(col => {
           const val = row[col.key];
-          if (Array.isArray(val)) return val.join(" | ");
           return val ?? "";
         })
       );
@@ -266,7 +261,6 @@ export default function DatabaseLogs() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(blobUrl);
-
     } catch (err) {
       console.error("Export error:", err);
       setError("Failed to export data: " + err.message);
@@ -301,88 +295,11 @@ export default function DatabaseLogs() {
     return () => observer.disconnect();
   }, [rows.length, hasMore, loading]);
 
-  /* ========================= FORMATTING HELPER ========================= */
-  const formatValue = (val, key) => {
-    if (val == null) return "-";
-
-    if (Array.isArray(val)) {
-      if (key === "cell_voltages") {
-        return (
-          <button
-            className="text-orange-400 underline font-semibold"
-            onClick={() => openRawModal("cell", val)}
-          >
-            View ({val.length})
-          </button>
-        );
-      }
-      if (key === "temp_sensors") {
-        return (
-          <button
-            className="text-orange-400 underline font-semibold"
-            onClick={() => openRawModal("temp", val)}
-          >
-            View ({val.length})
-          </button>
-        );
-      }
-      return val.join(" | ");
-    }
-
-    if (key === "btms_hv_request" || key === "bms_hv_relay_state" || key === "btms_hv_relay_state") {
-      if (val === 1) return "ON / CLOSED";
-      if (val === 0) return "OFF / OPEN";
-      return val;
-    }
-
-    if (key === "motor_status_word") {
-      return `0x${Number(val).toString(16).toUpperCase()}`;
-    }
-
-    return String(val);
-  };
-
   /* ========================= RENDER ========================= */
   const visibleColumns = COLUMNS.filter(c => c.alwaysVisible || selectedCols.has(c.key));
 
   return (
     <div className="space-y-6 pb-8">
-      {/* RAW MODAL - Optimized for 144 temps / 192 cells */}
-      {rawModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 overflow-hidden">
-          <div className="bg-gray-900 w-full max-w-6xl h-[90vh] max-h-[90vh] rounded-xl border border-orange-500/40 flex flex-col">
-            {/* Header */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-orange-500/20 flex-shrink-0">
-              <h2 className="text-xl font-bold text-orange-400">
-                {rawModal.type === "temp"
-                  ? `Temperature Sensors (Raw) • ${rawModal.values.length} values`
-                  : `Cell Voltages (Raw) • ${rawModal.values.length} values`}
-              </h2>
-              <button onClick={() => setRawModal(null)} className="text-gray-400 text-2xl hover:text-gray-200">✕</button>
-            </div>
-
-            {/* Scrollable Grid Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-4">
-                {rawModal.values.map((v, i) => (
-                  <div
-                    key={i}
-                    className="bg-gray-800 rounded-lg px-4 py-3 text-center border border-gray-700"
-                  >
-                    <div className="text-xs text-gray-400">
-                      {rawModal.type === "temp" ? `T${i + 1}` : `C${i + 1}`}
-                    </div>
-                    <div className="text-base text-orange-200 font-mono mt-1">
-                      {v == null ? "–" : Number(v).toFixed(3)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <h2 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
         Raw Telemetry Logs
       </h2>
@@ -538,7 +455,7 @@ export default function DatabaseLogs() {
                   <tr key={i} className="hover:bg-orange-500/5 transition">
                     {visibleColumns.map(col => (
                       <td key={col.key} className="px-5 py-3.5 text-orange-100">
-                        {formatValue(row[col.key], col.key)}
+                        {row[col.key] ?? "–"}
                       </td>
                     ))}
                   </tr>

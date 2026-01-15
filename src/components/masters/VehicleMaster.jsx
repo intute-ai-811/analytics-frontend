@@ -6,6 +6,7 @@ import {
   Pencil,
   Trash2,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import axios from "axios";
 
@@ -16,6 +17,13 @@ const CUSTOMERS_API = `${API_BASE}/customers`;
 const VTYPES_API = `${API_BASE}/vehicle-types`;
 const VCU_API = `${API_BASE}/vcu`;
 const HMI_API = `${API_BASE}/hmi`;
+
+// Date formatter
+const formatDate = (d) => {
+  if (!d) return "-";
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+};
 
 // Get Auth Headers
 const getAuthHeaders = () => {
@@ -190,7 +198,7 @@ export default function VehicleMaster() {
     setShowModal(true);
   };
 
-  // VCU options (only serial number visible)
+  // VCU / HMI options logic remains the same
   const getVcuOptions = () => {
     let available = vcus;
 
@@ -212,7 +220,6 @@ export default function VehicleMaster() {
     }));
   };
 
-  // HMI options (only IMEI visible)
   const getHmiOptions = () => {
     let available = hmis;
 
@@ -234,7 +241,7 @@ export default function VehicleMaster() {
     }));
   };
 
-  // Auto-fill make+model when selecting new VCU/HMI (only on create)
+  // Auto-fill make+model (create only)
   useEffect(() => {
     if (!editing && form.vcu_id) {
       const vcu = vcus.find((v) => v.vcu_id === parseInt(form.vcu_id));
@@ -259,7 +266,7 @@ export default function VehicleMaster() {
     }
   }, [form.hmi_id, hmis, editing]);
 
-  // Save form
+  // Save form logic remains unchanged
   const saveForm = async () => {
     if (!form.vehicle_reg_no || !form.customer_id || !form.vtype_id) {
       alert("Registration No., Customer, and Vehicle Type are required!");
@@ -309,7 +316,6 @@ export default function VehicleMaster() {
     }
   };
 
-  // Delete vehicle
   const removeRow = async (id) => {
     if (!confirm("Delete this vehicle permanently?")) return;
     try {
@@ -320,14 +326,14 @@ export default function VehicleMaster() {
     }
   };
 
-  // Export to CSV
   const exportCSV = () => {
     const headers = [
       "Unique ID", "Reg No.", "Customer", "Vehicle Type",
-      "VCU ID", "HMI ID", "VCU Make+Model", "HMI Make+Model",
-      "Motor ID", "Motor", "Controller ID", "Controller",
-      "Battery ID", "Battery", "DC/DC", "BTMS",
-      "Hydraulic Cooling", "Compressor", "Motor Cooling", "Details", "Deployment",
+      "VCU Serial", "HMI IMEI", "VCU Make+Model", "HMI Make+Model",
+      "Motor Unique ID", "Motor", "Controller Unique ID", "Controller",
+      "Battery Unique ID", "Battery", "DC/DC", "BTMS",
+      "Hydraulic Cooling", "Compressor", "Motor Cooling",
+      "Details", "Deployment",
     ];
 
     const csv = [
@@ -338,8 +344,8 @@ export default function VehicleMaster() {
           r.vehicle_reg_no || "",
           r.company_name || "",
           `${r.vehicle_make || ""} ${r.vehicle_model || ""}`.trim(),
-          r.vcu_id || "",
-          r.hmi_id || "",
+          r.vcu_serial || "",
+          r.hmi_imei || "",
           r.vcu_make_model || "",
           r.hmi_make_model || "",
           r.motor_unique_id || "",
@@ -358,7 +364,7 @@ export default function VehicleMaster() {
             r.compressor_details,
             r.motor_cooling_details,
           ].filter(Boolean).join(" | ") || "",
-          r.date_of_deployment || "",
+          formatDate(r.date_of_deployment),
         ]
           .map((v) => `"${v}"`)
           .join(",")
@@ -419,15 +425,13 @@ export default function VehicleMaster() {
         )}
 
         <div className="bg-gray-800/50 rounded-2xl border border-orange-500/30 overflow-x-auto">
-          <table className="w-full min-w-[2000px] text-sm">
+          <table className="w-full min-w-[1000px] text-sm">
             <thead className="bg-black/50">
               <tr>
                 {[
                   "Unique ID", "Reg No.", "Customer", "Vehicle Type",
-                  "VCU ID", "HMI ID", "VCU Make+Model", "HMI Make+Model",
-                  "Motor ID", "Motor", "Controller ID", "Controller",
-                  "Battery ID", "Battery", "DC/DC", "BTMS",
-                  "Hydraulic Cooling", "Compressor", "Motor Cooling", "Details", "Deployment", "Actions"
+                  "VCU Serial", "HMI IMEI", "VCU Make+Model", "HMI Make+Model",
+                  "Motor", "Battery", "DC/DC", "BTMS", "Deployment", "Actions"
                 ].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-orange-200 font-semibold">
                     {h}
@@ -449,27 +453,15 @@ export default function VehicleMaster() {
                       {r.vehicle_make} {r.vehicle_model}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs">{r.vcu_id || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.hmi_id || "-"}</td>
+                  <td className="px-4 py-3 text-xs font-mono">{r.vcu_serial || "-"}</td>
+                  <td className="px-4 py-3 text-xs font-mono">{r.hmi_imei || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.vcu_make_model || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.hmi_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.motor_unique_id || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.motor_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.controller_unique_id || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.controller_make_model || "-"}</td>
-                  <td className="px-4 py-3 text-xs">{r.battery_unique_id || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.battery_make_model || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.dc_dc_make_model || "-"}</td>
                   <td className="px-4 py-3 text-xs">{r.btms_make_model || "-"}</td>
-                  <td className="px-4 py-3">{r.hyd_cooling_yesno ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3">{r.compressor_yesno ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3">{r.motor_cooling_yesno ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3 text-xs">
-                    {[r.motor_controller_details, r.compressor_details, r.motor_cooling_details]
-                      .filter(Boolean)
-                      .join(" | ") || "-"}
-                  </td>
-                  <td className="px-4 py-3">{r.date_of_deployment || "-"}</td>
+                  <td className="px-4 py-3">{formatDate(r.date_of_deployment)}</td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => openEdit(r)}
@@ -488,7 +480,7 @@ export default function VehicleMaster() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={22} className="text-center py-16 text-orange-400">
+                  <td colSpan={14} className="text-center py-16 text-orange-400">
                     No vehicles found
                   </td>
                 </tr>
@@ -507,11 +499,7 @@ export default function VehicleMaster() {
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                  <Input
-                    label="Unique ID *"
-                    value={form.vehicle_unique_id}
-                    disabled
-                  />
+                  <Input label="Unique ID *" value={form.vehicle_unique_id} disabled />
 
                   <Input
                     label="Reg No./VIN *"
@@ -541,20 +529,23 @@ export default function VehicleMaster() {
                     placeholder="Select vehicle type"
                   />
 
-                  {/* Custom Searchable VCU Dropdown */}
+                  {/* === VCU Custom Dropdown with Chevron === */}
                   <div className="relative">
                     <label className="block">
-                      <span className="text-orange-300 text-xs">VCU</span>
+                      <span className="text-orange-300 text-xs">VCU Serial</span>
                     </label>
                     <div className="relative">
                       <input
                         type="text"
                         value={vcuSearch}
                         onChange={(e) => setVcuSearch(e.target.value)}
-                        placeholder="Type serial number..."
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="Type or select serial number..."
+                        className="mt-1 w-full px-3 py-2 pr-10 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
                         onFocus={() => setShowVcuList(true)}
                         onBlur={() => setTimeout(() => setShowVcuList(false), 200)}
+                      />
+                      <ChevronDown
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-400 pointer-events-none"
                       />
                       {form.vcu_id && (
                         <button
@@ -563,7 +554,7 @@ export default function VehicleMaster() {
                             setForm({ ...form, vcu_id: "" });
                             setVcuSearch("");
                           }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-400 text-xl leading-none"
+                          className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-400 text-xl leading-none"
                         >
                           ×
                         </button>
@@ -573,11 +564,7 @@ export default function VehicleMaster() {
                     {showVcuList && (
                       <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-orange-500/30 rounded-lg max-h-60 overflow-auto shadow-2xl">
                         {getVcuOptions()
-                          .filter((opt) =>
-                            (opt.serial || "")
-                              .toLowerCase()
-                              .includes(vcuSearch.toLowerCase())
-                          )
+                          .filter((opt) => (opt.serial || "").toLowerCase().includes(vcuSearch.toLowerCase()))
                           .map((opt) => (
                             <div
                               key={opt.value}
@@ -593,9 +580,7 @@ export default function VehicleMaster() {
                                 {opt.isCurrent && " (Current)"}
                               </span>
                               {opt.assignedTo && !opt.isCurrent && (
-                                <span className="text-xs text-orange-400">
-                                  → {opt.assignedTo}
-                                </span>
+                                <span className="text-xs text-orange-400">→ {opt.assignedTo}</span>
                               )}
                             </div>
                           ))}
@@ -616,20 +601,23 @@ export default function VehicleMaster() {
                     disabled={!!editing}
                   />
 
-                  {/* Custom Searchable HMI Dropdown */}
+                  {/* === HMI Custom Dropdown with Chevron === */}
                   <div className="relative">
                     <label className="block">
-                      <span className="text-orange-300 text-xs">HMI</span>
+                      <span className="text-orange-300 text-xs">HMI IMEI</span>
                     </label>
                     <div className="relative">
                       <input
                         type="text"
                         value={hmiSearch}
                         onChange={(e) => setHmiSearch(e.target.value)}
-                        placeholder="Type IMEI number..."
-                        className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="Type or select IMEI number..."
+                        className="mt-1 w-full px-3 py-2 pr-10 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
                         onFocus={() => setShowHmiList(true)}
                         onBlur={() => setTimeout(() => setShowHmiList(false), 200)}
+                      />
+                      <ChevronDown
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-400 pointer-events-none"
                       />
                       {form.hmi_id && (
                         <button
@@ -638,7 +626,7 @@ export default function VehicleMaster() {
                             setForm({ ...form, hmi_id: "" });
                             setHmiSearch("");
                           }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-400 text-xl leading-none"
+                          className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-400 text-xl leading-none"
                         >
                           ×
                         </button>
@@ -648,11 +636,7 @@ export default function VehicleMaster() {
                     {showHmiList && (
                       <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-orange-500/30 rounded-lg max-h-60 overflow-auto shadow-2xl">
                         {getHmiOptions()
-                          .filter((opt) =>
-                            (opt.imei || "")
-                              .toLowerCase()
-                              .includes(hmiSearch.toLowerCase())
-                          )
+                          .filter((opt) => (opt.imei || "").toLowerCase().includes(hmiSearch.toLowerCase()))
                           .map((opt) => (
                             <div
                               key={opt.value}
@@ -668,9 +652,7 @@ export default function VehicleMaster() {
                                 {opt.isCurrent && " (Current)"}
                               </span>
                               {opt.assignedTo && !opt.isCurrent && (
-                                <span className="text-xs text-orange-400">
-                                  → {opt.assignedTo}
-                                </span>
+                                <span className="text-xs text-orange-400">→ {opt.assignedTo}</span>
                               )}
                             </div>
                           ))}
@@ -691,13 +673,6 @@ export default function VehicleMaster() {
                     disabled={!!editing}
                   />
 
-                  {/* Rest of the fields */}
-                  <Input
-                    label="Motor Unique ID"
-                    value={form.motor_unique_id}
-                    onChange={(v) => setForm({ ...form, motor_unique_id: v })}
-                  />
-
                   <Input
                     label="Motor Make+Model"
                     value={form.motor_make_model}
@@ -705,21 +680,9 @@ export default function VehicleMaster() {
                   />
 
                   <Input
-                    label="Controller Unique ID"
-                    value={form.controller_unique_id}
-                    onChange={(v) => setForm({ ...form, controller_unique_id: v })}
-                  />
-
-                  <Input
                     label="Controller Make+Model"
                     value={form.controller_make_model}
                     onChange={(v) => setForm({ ...form, controller_make_model: v })}
-                  />
-
-                  <Input
-                    label="Battery Unique ID"
-                    value={form.battery_unique_id}
-                    onChange={(v) => setForm({ ...form, battery_unique_id: v })}
                   />
 
                   <Input
@@ -749,9 +712,7 @@ export default function VehicleMaster() {
                     <TextArea
                       label="Hydraulic Cooling Details"
                       value={form.motor_controller_details}
-                      onChange={(v) =>
-                        setForm({ ...form, motor_controller_details: v })
-                      }
+                      onChange={(v) => setForm({ ...form, motor_controller_details: v })}
                     />
                   )}
 
@@ -764,26 +725,20 @@ export default function VehicleMaster() {
                     <TextArea
                       label="Compressor Details"
                       value={form.compressor_details}
-                      onChange={(v) =>
-                        setForm({ ...form, compressor_details: v })
-                      }
+                      onChange={(v) => setForm({ ...form, compressor_details: v })}
                     />
                   )}
 
                   <YesNoSelect
                     label="Motor Cooling"
                     value={form.motor_cooling_yesno}
-                    onChange={(v) =>
-                      setForm({ ...form, motor_cooling_yesno: v })
-                    }
+                    onChange={(v) => setForm({ ...form, motor_cooling_yesno: v })}
                   />
                   {form.motor_cooling_yesno === "Yes" && (
                     <TextArea
                       label="Motor Cooling Details"
                       value={form.motor_cooling_details}
-                      onChange={(v) =>
-                        setForm({ ...form, motor_cooling_details: v })
-                      }
+                      onChange={(v) => setForm({ ...form, motor_cooling_details: v })}
                     />
                   )}
 
@@ -791,9 +746,7 @@ export default function VehicleMaster() {
                     label="Date of Deployment"
                     type="date"
                     value={form.date_of_deployment}
-                    onChange={(v) =>
-                      setForm({ ...form, date_of_deployment: v })
-                    }
+                    onChange={(v) => setForm({ ...form, date_of_deployment: v })}
                   />
                 </div>
 
@@ -821,7 +774,7 @@ export default function VehicleMaster() {
 }
 
 // ────────────────────────────────────────────────
-// Reusable Components
+// Reusable Components (unchanged)
 // ────────────────────────────────────────────────
 
 function Input({ label, value = "", onChange, disabled = false, ...props }) {
@@ -864,7 +817,7 @@ function Select({ label, value, onChange, options = [], placeholder = "Select...
       <select
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm"
+        className="mt-1 w-full px-3 py-2 rounded-lg bg-gray-800 border border-orange-500/30 focus:ring-2 focus:ring-orange-500 text-sm appearance-none"
       >
         <option value="" disabled>
           {placeholder}
