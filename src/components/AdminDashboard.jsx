@@ -11,7 +11,7 @@ import {
 import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const PAGE_SIZE = 10; // Slightly increased for better UX
+const PAGE_SIZE = 10;
 
 /* =========================
    STATUS PILL COMPONENT
@@ -29,7 +29,15 @@ const StatusPill = React.memo(({ status }) => {
     <span
       className={`px-3 py-1.5 text-xs font-medium rounded-full border ${styles[status] || styles.offline} flex items-center gap-1.5`}
     >
-      <span className={`w-2 h-2 rounded-full ${styles[status]?.includes('green') ? 'bg-green-400' : styles[status]?.includes('yellow') ? 'bg-yellow-400' : 'bg-red-400'} animate-pulse`} />
+      <span
+        className={`w-2 h-2 rounded-full ${
+          styles[status]?.includes("green")
+            ? "bg-green-400"
+            : styles[status]?.includes("yellow")
+            ? "bg-yellow-400"
+            : "bg-red-400"
+        } animate-pulse`}
+      />
       {label}
     </span>
   );
@@ -73,14 +81,10 @@ export default function AdminDashboard() {
     setLoading(true);
 
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/api/vehicle-master/admin-summary`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await axios.get(`${API_BASE_URL}/api/vehicle-master/admin-summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      // Ensure consistent data structure
       const formattedData = (res.data || []).map((row) => ({
         vehicle_master_id: row.vehicle_master_id,
         vehicle_type: row.vehicle_type?.trim() || "—",
@@ -115,6 +119,91 @@ export default function AdminDashboard() {
   }, [token, navigate]);
 
   /* =========================
+     BASE SORTED LIST (always by vehicle_master_id ASC)
+  ========================= */
+  const baseSortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => 
+      Number(a.vehicle_master_id) - Number(b.vehicle_master_id)
+    );
+  }, [rows]);
+
+  /* =========================
+     ID → Permanent Rank Map (fast lookup)
+  ========================= */
+  const idToRank = useMemo(() => {
+    const map = new Map();
+    baseSortedRows.forEach((row, index) => {
+      map.set(row.vehicle_master_id, index + 1);
+    });
+    return map;
+  }, [baseSortedRows]);
+
+  /* =========================
+     PROCESSED DATA (search + optional user sort)
+  ========================= */
+  const processedData = useMemo(() => {
+    let data = [...baseSortedRows];
+
+    // Apply search filter
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      data = data.filter((row) =>
+        ["customer", "vehicle_type", "vehicle_no"].some((field) =>
+          String(row[field] || "").toLowerCase().includes(q)
+        )
+      );
+    }
+
+    // Apply user-selected sort ONLY if different from default ID sort
+    if (sort.key && sort.key !== "vehicle_master_id") {
+      const multiplier = sort.dir === "asc" ? 1 : -1;
+
+      data.sort((a, b) => {
+        let valA = a[sort.key];
+        let valB = b[sort.key];
+
+        switch (sort.key) {
+          case "total_hours":
+          case "total_kwh":
+          case "avg_kwh":
+          case "capacity":
+            valA = valA === "—" ? -Infinity : Number(valA);
+            valB = valB === "—" ? -Infinity : Number(valB);
+            break;
+
+          case "status":
+            const order = { online: 0, idle: 1, offline: 2 };
+            valA = order[valA] ?? 3;
+            valB = order[valB] ?? 3;
+            break;
+
+          default:
+            valA = String(valA || "").toLowerCase();
+            valB = String(valB || "").toLowerCase();
+        }
+
+        return (valA > valB ? 1 : valA < valB ? -1 : 0) * multiplier;
+      });
+    }
+
+    return data;
+  }, [baseSortedRows, query, sort]);
+
+  /* =========================
+     PAGINATION
+  ========================= */
+  const totalPages = Math.max(1, Math.ceil(processedData.length / PAGE_SIZE));
+
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return processedData.slice(start, start + PAGE_SIZE);
+  }, [processedData, page]);
+
+  /* =========================
      REFRESH HANDLER
   ========================= */
   const onRefresh = async () => {
@@ -135,65 +224,6 @@ export default function AdminDashboard() {
         : { key, dir: "asc" }
     );
   };
-
-  /* =========================
-     FILTER + SORT LOGIC
-  ========================= */
-  const processedData = useMemo(() => {
-    let data = [...rows];
-
-    // Search filter
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      data = data.filter((row) =>
-        ["customer", "vehicle_type", "vehicle_no"].some((field) =>
-          String(row[field] || "").toLowerCase().includes(q)
-        )
-      );
-    }
-
-    // Sorting
-    const sortableKeys = columns.filter((c) => c.sortable).map((c) => c.key);
-    if (sortableKeys.includes(sort.key)) {
-      const multiplier = sort.dir === "asc" ? 1 : -1;
-
-      data.sort((a, b) => {
-        let valA = a[sort.key];
-        let valB = b[sort.key];
-
-        // Handle numeric fields
-        if (["total_hours", "total_kwh", "avg_kwh"].includes(sort.key)) {
-          valA = valA === "—" ? -Infinity : Number(valA);
-          valB = valB === "—" ? -Infinity : Number(valB);
-        } else if (sort.key === "status") {
-          const order = { online: 0, idle: 1, offline: 2 };
-          valA = order[valA] ?? 3;
-          valB = order[valB] ?? 3;
-        } else {
-          valA = String(valA || "").toLowerCase();
-          valB = String(valB || "").toLowerCase();
-        }
-
-        return (valA > valB ? 1 : valA < valB ? -1 : 0) * multiplier;
-      });
-    }
-
-    return data;
-  }, [rows, query, sort]);
-
-  /* =========================
-     PAGINATION
-  ========================= */
-  const totalPages = Math.max(1, Math.ceil(processedData.length / PAGE_SIZE));
-
-  useEffect(() => {
-    if (page > totalPages && totalPages > 0) setPage(totalPages);
-  }, [page, totalPages]);
-
-  const paginatedRows = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return processedData.slice(start, start + PAGE_SIZE);
-  }, [processedData, page]);
 
   /* =========================
      ROW CLICK → Vehicle Details
@@ -312,14 +342,14 @@ export default function AdminDashboard() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedRows.map((row, idx) => (
+                  paginatedRows.map((row) => (
                     <tr
                       key={row.vehicle_master_id}
                       onClick={() => handleRowClick(row)}
                       className="hover:bg-orange-500/5 transition cursor-pointer group"
                     >
-                      <td className="px-6 py-5 text-sm">
-                        {(page - 1) * PAGE_SIZE + idx + 1}
+                      <td className="px-6 py-5 text-sm font-medium text-orange-300/90">
+                        {idToRank.get(row.vehicle_master_id) ?? "—"}
                       </td>
                       <td className="px-6 py-5">
                         <span className="font-medium text-orange-100">
