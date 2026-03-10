@@ -15,7 +15,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
+// import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -144,9 +144,9 @@ function Header({ user, onLogout }) {
             </button>
           )}
 
-          <div className="absolute left-1/2 -translate-x-1/2">
+          {/* <div className="absolute left-1/2 -translate-x-1/2">
             <img src={erdeLogo} alt="ERDE Logo" className="h-11 opacity-95" />
-          </div>
+          </div> */}
 
           <div className="ml-auto flex items-center gap-6">
             <div className="text-right">

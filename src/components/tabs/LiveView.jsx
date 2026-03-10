@@ -1,14 +1,7 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 const LIVE_THRESHOLD_MS = 15000;
-
-// Local module slice helper
-const moduleSlice = (arr = [], perModule, mIndex) => {
-  if (!Array.isArray(arr)) return [];
-  const start = mIndex * perModule;
-  return arr.slice(start, start + perModule);
-};
 
 // Color helpers (matching mobile app exactly)
 const tempColor = (t) => {
@@ -82,7 +75,6 @@ export default function LiveView() {
 
     fetchSnapshot();
 
-    // Clean up any existing EventSource
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
@@ -122,7 +114,6 @@ export default function LiveView() {
     };
   }, [id]);
 
-  // Fixed: recomputes on every render when lastUpdateTime changes
   const isActivelyLive = lastUpdateTime
     ? Date.now() - lastUpdateTime.getTime() < LIVE_THRESHOLD_MS
     : false;
@@ -175,31 +166,17 @@ export default function LiveView() {
     </div>
   );
 
-  // Pack-level stats
-  const tempPackStats = useMemo(() => {
-    const temps = live.temp_sensors;
-    if (!Array.isArray(temps) || temps.length === 0) return { min: null, avg: null, max: null };
-    const valid = temps.filter((v) => v != null);
-    if (valid.length === 0) return { min: null, avg: null, max: null };
-    return {
-      min: Math.min(...valid),
-      max: Math.max(...valid),
-      avg: valid.reduce((a, b) => a + b, 0) / valid.length,
-    };
-  }, [live.temp_sensors]);
+  const Divider = ({ label }) => (
+    <div className="flex items-center gap-2 pt-1 pb-0.5">
+      <div className="flex-1 h-px bg-orange-500/20" />
+      {label && <span className="text-[11px] text-orange-500/60 uppercase tracking-widest">{label}</span>}
+      <div className="flex-1 h-px bg-orange-500/20" />
+    </div>
+  );
 
-  const voltagePackStats = useMemo(() => {
-    const cells = live.cell_voltages;
-    if (!Array.isArray(cells) || cells.length === 0)
-      return { min: null, avg: null, max: null, outliers: 0 };
-    const valid = cells.filter((v) => v != null);
-    if (valid.length === 0) return { min: null, avg: null, max: null, outliers: 0 };
-    const min = Math.min(...valid);
-    const max = Math.max(...valid);
-    const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
-    const outliers = valid.filter((v) => Math.abs(v - avg) > 0.10).length;
-    return { min, max, avg, outliers };
-  }, [live.cell_voltages]);
+  // ────────────────────────────────────────────────
+  const tempPackStats = live.temp_pack_stats ?? {};
+  const voltagePackStats = live.cell_pack_stats ?? {};
 
   if (loading && !Object.keys(live).length) {
     return <div className="text-center py-12 text-orange-200">Loading live data…</div>;
@@ -243,6 +220,8 @@ export default function LiveView() {
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* ── Battery / BMS / Charger ── */}
         <Section title="Battery / BMS / Charger">
           <Item name="State of Charge" value={<Val v={live.soc_percent} unit="%" fixed={1} />} />
           <Item name="Battery Status" value={live.battery_status ?? "–"} />
@@ -272,12 +251,25 @@ export default function LiveView() {
               </button>
             }
           />
+
+          {/* BMS-reported pack voltage stats */}
+          <Divider label="Pack Voltage (BMS)" />
+          <Item name="Max Cell Voltage" value={<Val v={live.max_voltage_v} unit="V" fixed={3} />} />
+          <Item name="Min Cell Voltage" value={<Val v={live.min_voltage_v} unit="V" fixed={3} />} />
+          <Item name="Avg Cell Voltage" value={<Val v={live.avg_voltage_v} unit="V" fixed={3} />} />
+
+          {/* BMS-reported pack temperature stats */}
+          <Divider label="Pack Temperature (BMS)" />
+          <Item name="Max Temperature" value={<Val v={live.max_temp_c} unit="°C" fixed={1} />} />
+          <Item name="Min Temperature" value={<Val v={live.min_temp_c} unit="°C" fixed={1} />} />
+          <Item name="Avg Temperature" value={<Val v={live.avg_temp_c} unit="°C" fixed={1} />} />
         </Section>
 
+        {/* ── Motor & MCU ── */}
         <Section title="Motor & MCU">
           <Item name="Torque" value={<Val v={live.motor_torque_nm} unit="Nm" />} />
           <Item name="Operation Mode" value={live.motor_operation_mode ?? "–"} />
-          <Item name="Speed" value={<Val v={live.motor_speed_rpm} fixed={0} unit="RPM" />} />
+          <Item name="Speed" value={<Val v={live.motor_speed_rpm} fixed={0} unit=" RPM" />} />
           <Item name="AC Current" value={<Val v={live.ac_current_a} unit="A" />} />
           <Item name="Torque Limit" value={<Val v={live.motor_torque_limit} unit="Nm" />} />
           <Item name="Rotation Direction" value={live.motor_rotation_dir ?? "–"} />
@@ -285,32 +277,23 @@ export default function LiveView() {
           <Item name="AC Voltage" value={<Val v={live.motor_ac_voltage_v} unit="V" />} />
           <Item name="MCU Enable State" value={live.mcu_enable_state ?? "–"} />
           <Item name="MCU Temperature" value={<Val v={live.mcu_temp_c} unit="°C" />} />
-          <Item
-            name="Status Word"
-            value={
-              live.motor_status_word != null
-                ? `0x${Number(live.motor_status_word).toString(16).toUpperCase()}`
-                : "–"
-            }
-          />
+          <Item name="DC Side Voltage" value={<Val v={live.dc_side_voltage_v} unit="V" />} />
+          <Item name="Status Word" value={live.motor_status_word ?? "–"} />
           <Item name="Frequency Raw" value={live.motor_freq_raw ?? "–"} />
-          <Item
-            name="Total Wattage"
-            value={<Val v={live.motor_total_wattage_w} unit="W" fixed={0} />}
-          />
-          <Item name="DC Input Voltage Raw" value={live.motor_dc_input_voltage_raw ?? "–"} />
-          <Item name="AC Output Voltage Raw" value={live.motor_ac_output_voltage_raw ?? "–"} />
+          <Item name="Total Wattage" value={<Val v={live.motor_total_wattage_w} unit="W" fixed={0} />} />
         </Section>
 
-        <Section title="Peripherals Live Data">
+        {/* ── Peripherals ── */}
+        {/* <Section title="Peripherals Live Data">
           <Item
             name="Radiator Temperature"
             value={<Val v={live.radiator_temp_c} unit="°C" fixed={1} />}
           />
           <Item name="Hydraulic Oil Temperature" value="–" />
           <Item name="Hydraulic Pump RPM" value="–" />
-        </Section>
+        </Section> */}
 
+        {/* ── ODO / Trip ── */}
         <Section title="ODO / Trip Details">
           <Item name="Total Running Hours" value={<HoursToHrMin hours={live.total_hours} />} />
           <Item name="Last Trip Hours" value={<HoursToHrMin hours={live.last_trip_hrs} />} />
@@ -324,7 +307,8 @@ export default function LiveView() {
           />
         </Section>
 
-        <Section title="DC-DC Converter">
+        {/* ── DC-DC Converter ── */}
+        {/* <Section title="DC-DC Converter">
           <Item name="Input Voltage" value={<Val v={live.dcdc_input_voltage_v} unit="V" />} />
           <Item name="Input Current" value={<Val v={live.dcdc_input_current_a} unit="A" />} />
           <Item
@@ -337,26 +321,16 @@ export default function LiveView() {
           />
           <Item name="Output Voltage" value={<Val v={live.dcdc_output_voltage_v} unit="V" />} />
           <Item name="Output Current" value={<Val v={live.dcdc_output_current_a} unit="A" />} />
-          <Item
-            name="Pri A MOSFET Temp"
-            value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />}
-          />
-          <Item
-            name="Pri C MOSFET Temp"
-            value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />}
-          />
-          <Item
-            name="Sec LS MOSFET Temp"
-            value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />}
-          />
-          <Item
-            name="Sec HS MOSFET Temp"
-            value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />}
-          />
+          <Item name="Max Temperature" value={<Val v={live.dcdc_max_temp_c} unit="°C" />} />
+          <Item name="Pri A MOSFET Temp" value={<Val v={live.dcdc_pri_a_mosfet_temp_c} unit="°C" />} />
+          <Item name="Pri C MOSFET Temp" value={<Val v={live.dcdc_pri_c_mosfet_temp_c} unit="°C" />} />
+          <Item name="Sec LS MOSFET Temp" value={<Val v={live.dcdc_sec_ls_mosfet_temp_c} unit="°C" />} />
+          <Item name="Sec HS MOSFET Temp" value={<Val v={live.dcdc_sec_hs_mosfet_temp_c} unit="°C" />} />
           <Item name="Overcurrent Fault Count" value={live.dcdc_occurrence_count ?? "–"} />
-        </Section>
+        </Section> */}
 
-        <Section title="BTMS (Thermal Management)">
+        {/* ── BTMS ── */}
+        {/* <Section title="BTMS (Thermal Management)">
           <Item name="Command Mode" value={live.btms_command_mode ?? "–"} />
           <Item
             name="Status Mode"
@@ -365,9 +339,9 @@ export default function LiveView() {
           <Item
             name="HV Request"
             value={
-              live.btms_hv_request === 1
+              live.btms_hv_request === 0
                 ? "ON"
-                : live.btms_hv_request === 0
+                : live.btms_hv_request === 1
                 ? "OFF"
                 : "–"
             }
@@ -402,8 +376,45 @@ export default function LiveView() {
           />
           <Item name="Pack Voltage (BMS)" value={<Val v={live.bms_pack_voltage_v} unit="V" />} />
           <Item name="BMS Life Counter" value={live.bms_life_counter ?? "–"} />
-        </Section>
+        </Section> */}
 
+        {/* ── Air Compressor ── */}
+        {/* <Section title="Air Compressor">
+          <Item
+            name="Input Voltage"
+            value={<Val v={live.compressor_input_voltage_v} unit="V" />}
+          />
+          <Item
+            name="Input Current"
+            value={<Val v={live.compressor_input_current_a} unit="A" />}
+          />
+          <Item
+            name="Input Power"
+            value={
+              live.compressor_input_voltage_v != null && live.compressor_input_current_a != null
+                ? <Val v={(live.compressor_input_voltage_v * live.compressor_input_current_a) / 1000} unit="kW" />
+                : "–"
+            }
+          />
+          <Item
+            name="Output Voltage"
+            value={<Val v={live.compressor_output_voltage_v} unit="V" />}
+          />
+          <Item
+            name="Output Current"
+            value={<Val v={live.compressor_output_current_a} unit="A" />}
+          />
+          <Item
+            name="Output Power"
+            value={
+              live.compressor_output_voltage_v != null && live.compressor_output_current_a != null
+                ? <Val v={(live.compressor_output_voltage_v * live.compressor_output_current_a) / 1000} unit="kW" />
+                : "–"
+            }
+          />
+        </Section> */}
+
+        {/* ── Alarms ── */}
         <div className="md:col-span-2">
           <Section title="Alarms & Warnings">
             {Object.entries(live)
@@ -453,7 +464,7 @@ export default function LiveView() {
                   </h2>
                   <p className="text-sm text-gray-400 mt-1 flex items-center gap-2">
                     <span className="inline-block w-2 h-2 bg-orange-400 rounded-full animate-pulse"></span>
-                    8 Modules × 18 Sensors = 144 Total Points
+                    {(live.temp_modules?.length ?? 0)} Modules
                   </p>
                 </div>
                 <button
@@ -465,34 +476,34 @@ export default function LiveView() {
               </div>
             </div>
 
-            {/* Super Compact Stats */}
+            {/* Pack stats */}
             <div className="p-4 bg-gradient-to-b from-gray-800/60 to-gray-800/30 border-b border-orange-500/20">
               <div className="flex flex-wrap gap-3 justify-center mb-3">
                 <div
                   className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner"
-                  style={{ borderColor: tempColor(tempPackStats.max) }}
+                  style={{ borderColor: tempColor(tempPackStats.max_c) }}
                 >
                   <div className="text-xs text-gray-400">Max</div>
-                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.max) }}>
-                    {fmt1(tempPackStats.max)}°C
+                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.max_c) }}>
+                    {fmt1(tempPackStats.max_c)}°C
                   </div>
                 </div>
                 <div
                   className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner"
-                  style={{ borderColor: tempColor(tempPackStats.avg) }}
+                  style={{ borderColor: tempColor(tempPackStats.avg_c) }}
                 >
                   <div className="text-xs text-gray-400">Avg</div>
-                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.avg) }}>
-                    {fmt1(tempPackStats.avg)}°C
+                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.avg_c) }}>
+                    {fmt1(tempPackStats.avg_c)}°C
                   </div>
                 </div>
                 <div
                   className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner"
-                  style={{ borderColor: tempColor(tempPackStats.min) }}
+                  style={{ borderColor: tempColor(tempPackStats.min_c) }}
                 >
                   <div className="text-xs text-gray-400">Min</div>
-                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.min) }}>
-                    {fmt1(tempPackStats.min)}°C
+                  <div className="text-lg font-bold" style={{ color: tempColor(tempPackStats.min_c) }}>
+                    {fmt1(tempPackStats.min_c)}°C
                   </div>
                 </div>
               </div>
@@ -509,48 +520,70 @@ export default function LiveView() {
               </div>
             </div>
 
-            {/* Dense Grid */}
+            {/* Modules */}
             <div className="overflow-y-auto max-h-[58vh] p-4">
-              {Array.from({ length: 8 }, (_, i) => {
-                const mod = moduleSlice(live.temp_sensors, 18, i);
-                const valid = mod.filter((t) => t != null);
-                const modMax = valid.length > 0 ? Math.max(...valid) : null;
-                const modMin = valid.length > 0 ? Math.min(...valid) : null;
+              {(live.temp_modules ?? []).map((moduleValues, i) => {
+                const moduleStats = live.temp_module_stats?.[i] ?? {};
+                const moduleBorder =
+                  moduleStats.status === "CRITICAL" ? "border-red-500" :
+                  moduleStats.status === "WARN"     ? "border-yellow-500/70" :
+                  "border-green-500/60";
 
                 return (
                   <div
                     key={i}
-                    className="mb-4 bg-gray-800/40 rounded-lg p-3 border border-orange-500/20"
+                    className={`mb-5 bg-gray-800/40 rounded-lg p-4 border-2 ${moduleBorder}`}
                   >
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
                       <h3 className="text-base font-bold text-orange-300">Module {i + 1}</h3>
-                      <div className="flex gap-2 text-xs">
-                        <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/30">
-                          Min: {fmt1(modMin)}°C
+                      <div className="flex gap-2 text-xs flex-wrap">
+                        <span className="px-2.5 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/30">
+                          Min: {fmt1(moduleStats.min_c)}°C
                         </span>
-                        <span className="px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
-                          Max: {fmt1(modMax)}°C
+                        <span className="px-2.5 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
+                          Max: {fmt1(moduleStats.max_c)}°C
                         </span>
+                        {moduleStats.status && (
+                          <span
+                            className={`px-3 py-1 rounded text-xs font-medium ${
+                              moduleStats.status === "CRITICAL" ? "bg-red-600/30 text-red-300 border border-red-500/40" :
+                              moduleStats.status === "WARN"     ? "bg-yellow-600/30 text-yellow-300 border border-yellow-500/40" :
+                              "bg-green-600/30 text-green-300 border border-green-500/40"
+                            }`}
+                          >
+                            {moduleStats.status}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-9 sm:grid-cols-12 md:grid-cols-15 lg:grid-cols-18 gap-1.5">
-                      {mod.map((t, j) => (
+                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
+                      {moduleValues.map((t, j) => (
                         <div
                           key={j}
                           className="bg-gray-900/60 border-2 rounded-md px-1.5 py-1.5 text-center hover:scale-105 transition-all"
                           style={{ borderColor: tempColor(t) }}
                         >
-                          <div className="text-[9px] text-gray-500">#{i * 18 + j + 1}</div>
+                          <div className="text-[9px] text-gray-500">#{j + 1}</div>
                           <div className="text-xs font-bold" style={{ color: tempColor(t) }}>
                             {fmt1(t)}
                           </div>
                           <div className="text-[8px] text-gray-500">°C</div>
                         </div>
                       ))}
+                      {moduleValues.length === 0 && (
+                        <div className="col-span-full text-center text-gray-500 py-8">
+                          No temperature data for this module
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
+              {(live.temp_modules ?? []).length === 0 && (
+                <div className="text-center text-gray-500 py-12">
+                  No temperature module data available
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -574,7 +607,7 @@ export default function LiveView() {
                   </h2>
                   <p className="text-sm text-gray-400 mt-1 flex items-center gap-2">
                     <span className="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-                    8 Modules × 24 Cells = 192 Total Points
+                    {(live.cell_modules?.length ?? 0)} Modules
                   </p>
                 </div>
                 <button
@@ -586,25 +619,25 @@ export default function LiveView() {
               </div>
             </div>
 
-            {/* Super Compact Stats */}
+            {/* Pack stats */}
             <div className="p-4 bg-gradient-to-b from-gray-800/60 to-gray-800/30 border-b border-emerald-500/20">
               <div className="flex flex-wrap gap-3 justify-center mb-3">
                 <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-red-500">
                   <div className="text-xs text-gray-400">Max</div>
-                  <div className="text-lg font-bold text-red-400">{fmt3(voltagePackStats.max)}V</div>
+                  <div className="text-lg font-bold text-red-400">{fmt3(voltagePackStats.max_v)}V</div>
                 </div>
                 <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-yellow-400">
                   <div className="text-xs text-gray-400">Avg</div>
-                  <div className="text-lg font-bold text-yellow-400">{fmt3(voltagePackStats.avg)}V</div>
+                  <div className="text-lg font-bold text-yellow-400">{fmt3(voltagePackStats.avg_v)}V</div>
                 </div>
                 <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-green-500">
                   <div className="text-xs text-gray-400">Min</div>
-                  <div className="text-lg font-bold text-green-400">{fmt3(voltagePackStats.min)}V</div>
+                  <div className="text-lg font-bold text-green-400">{fmt3(voltagePackStats.min_v)}V</div>
                 </div>
                 <div className="px-4 py-2 rounded-lg border-2 bg-gray-800/80 shadow-inner border-red-500">
                   <div className="text-xs text-gray-400">Outliers</div>
                   <div className="text-lg font-bold text-red-400">
-                    ±0.10V: {voltagePackStats.outliers}
+                    ±0.10V: {voltagePackStats.outliers ?? 0}
                   </div>
                 </div>
               </div>
@@ -624,51 +657,57 @@ export default function LiveView() {
               </div>
             </div>
 
-            {/* Dense Grid */}
+            {/* Modules */}
             <div className="overflow-y-auto max-h-[58vh] p-4">
-              {Array.from({ length: 8 }, (_, i) => {
-                const mod = moduleSlice(live.cell_voltages, 24, i);
-                const valid = mod.filter((v) => v != null);
-                const modMax = valid.length > 0 ? Math.max(...valid) : null;
-                const modMin = valid.length > 0 ? Math.min(...valid) : null;
-
+              {(live.cell_modules ?? []).map((moduleValues, i) => {
+                const moduleStats = live.cell_module_stats?.[i] ?? {};
                 return (
                   <div
                     key={i}
-                    className="mb-4 bg-gray-800/40 rounded-lg p-3 border border-emerald-500/20"
+                    className="mb-5 bg-gray-800/40 rounded-lg p-4 border border-emerald-500/20"
                   >
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
                       <h3 className="text-base font-bold text-emerald-300">Module {i + 1}</h3>
                       <div className="flex gap-2 text-xs">
-                        <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/30">
-                          Min: {fmt3(modMin)}V
+                        <span className="px-2.5 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/30">
+                          Min: {fmt3(moduleStats.min_v)}V
                         </span>
-                        <span className="px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
-                          Max: {fmt3(modMax)}V
+                        <span className="px-2.5 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
+                          Max: {fmt3(moduleStats.max_v)}V
                         </span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-8 sm:grid-cols-12 md:grid-cols-16 lg:grid-cols-24 gap-1.5">
-                      {mod.map((v, j) => (
+                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
+                      {moduleValues.map((v, j) => (
                         <div
                           key={j}
                           className="bg-gray-900/60 border-2 rounded-md px-1.5 py-1.5 text-center hover:scale-105 transition-all"
-                          style={{ borderColor: cellBoxColor(v, voltagePackStats.avg) }}
+                          style={{ borderColor: cellBoxColor(v, voltagePackStats.avg_v) }}
                         >
-                          <div className="text-[9px] text-gray-500">#{i * 24 + j + 1}</div>
+                          <div className="text-[9px] text-gray-500">#{j + 1}</div>
                           <div
                             className="text-xs font-bold"
-                            style={{ color: cellBoxColor(v, voltagePackStats.avg) }}
+                            style={{ color: cellBoxColor(v, voltagePackStats.avg_v) }}
                           >
                             {fmt3(v)}
                           </div>
                           <div className="text-[8px] text-gray-500">V</div>
                         </div>
                       ))}
+                      {moduleValues.length === 0 && (
+                        <div className="col-span-full text-center text-gray-500 py-8">
+                          No voltage data for this module
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
+              {(live.cell_modules ?? []).length === 0 && (
+                <div className="text-center text-gray-500 py-12">
+                  No cell voltage module data available
+                </div>
+              )}
             </div>
           </div>
         </div>

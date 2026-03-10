@@ -4,7 +4,8 @@ import { Eye, EyeOff, Lock, User, LogIn, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 // import veloConnectLogo from "../assets/VeloConnectwb.png";
-import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
+// import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
+import intuteLogo from "../assets/intuteAIYellow.png";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 /**
@@ -22,12 +23,101 @@ export default function LoginModal({ onClose, onAuth }) {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+ 
 
-  const handleLogin = async () => {
+  // const handleLogin = async () => {
+  //   if (!email || !password) {
+  //     setError("Both email and password are required.");
+  //     return;
+  //   }
+
+  //   setLoading(true);
+  //   setError("");
+
+  //   try {
+  //     const { data } = await axios.post(
+  //       `${API_BASE_URL}/api/auth/login`,
+  //       { email, password },
+  //       { headers: { "Content-Type": "application/json" } }
+  //     );
+
+  //     const { token, user } = data;
+
+  //     // SAVE JWT TOKEN (CRITICAL FOR LIVE DATA)
+  //     localStorage.setItem("token", token);
+
+  //     // Save user info + token
+  //     const authPayload = {
+  //       token,
+  //       name: user.name,
+  //       email: user.email,
+  //       role: user.role,
+  //     };
+  //     localStorage.setItem("user", JSON.stringify(authPayload));
+
+  //     // SAVE PASSWORD FOR MASTER DB ACCESS (as you already do)
+  //     localStorage.setItem("loginPassword", password);
+
+  //     // Notify parent component
+  //     if (typeof onAuth === "function") {
+  //       try {
+  //         onAuth({ token, user });
+  //       } catch (e) {
+  //         console.error(e);
+  //       }
+  //     }
+
+  //     // Fire global event
+  //     try {
+  //       window.dispatchEvent(
+  //         new CustomEvent("auth:login", { detail: { token, user } })
+  //       );
+  //     } catch (e) {
+  //       console.error(e);
+  //     }
+
+  //     // Navigate based on role
+  //     // inside LoginModal handleLogin, after successful login:
+  //     const isAdmin = user.role === "admin";
+  //     const target = isAdmin ? "/admin/splash" : "/customer/splash";
+
+  //     navigate(target, {
+  //       replace: true,
+  //       state: { fromLogin: true, ts: Date.now() },
+  //     });
+
+  //     // (Optional) you can remove the fallback entirely,
+  //     // but if you keep it, point to the same target:
+  //     setTimeout(() => {
+  //       if (window.location.pathname !== target) {
+  //         window.location.replace(target);
+  //       }
+  //     }, 50);
+
+  //     onClose?.();
+  //   } catch (err) {
+  //     const message =
+  //       err?.response?.data?.error ||
+  //       err?.response?.data?.message ||
+  //       "Invalid credentials. Please try again.";
+  //     setError(message);
+  //     console.error("Login failed:", err);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+const HARDCODED_EMAIL = "admin@intuteai.in";
+const HARDCODED_PASSWORD = "password123";
+    const handleLogin = async () => {
     if (!email || !password) {
       setError("Both email and password are required.");
       return;
     }
+
+    if (email !== HARDCODED_EMAIL || password !== HARDCODED_PASSWORD) {
+    setError("Invalid credentials.");
+    return;
+  }
 
     setLoading(true);
     setError("");
@@ -104,7 +194,6 @@ export default function LoginModal({ onClose, onAuth }) {
       setLoading(false);
     }
   };
-
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !loading) handleLogin();
   };
@@ -191,9 +280,9 @@ export default function LoginModal({ onClose, onAuth }) {
           <div className="pt-12 pb-10 px-8">
             <div className="flex flex-col items-center mb-10">
               <img
-                src={erdeLogo}
-                alt="ERDE"
-                className="h-8 md:h-10 lg:h-12 w-auto mx-auto object-contain"
+                src={intuteLogo}
+                alt="INTUTE"
+                className="h-20 md:h-24 lg:h-28 w-auto mx-auto object-contain"
               />
             </div>
 
