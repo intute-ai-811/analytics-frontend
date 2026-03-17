@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
-    paths:
-      - 'analytics-frontend/**'
 
 jobs:
   deploy:
@@ -26,7 +24,7 @@ jobs:
 
       - name: Build Analytics Frontend Docker Image
         run: |
-          docker build -t intuteai/analytics-frontend:latest ./analytics-frontend
+          docker build -t intuteai/analytics-frontend:latest .
 
       - name: Push Analytics Frontend Docker Image
         run: |
