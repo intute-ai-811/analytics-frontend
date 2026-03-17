@@ -3,18 +3,12 @@ import React, { useState } from "react";
 import { Eye, EyeOff, Lock, User, LogIn, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-// import veloConnectLogo from "../assets/VeloConnectwb.png";
-// import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
-import intuteLogo from "../assets/intuteAIYellow.png";
+
+// ✅ FIXED: Correct case-sensitive filename
+import intuteLogo from "../assets/IntuteAIYellow.png";
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-/**
- * @typedef {Object} LoginModalProps
- * @property {() => void} [onClose] - Optional close handler
- * @property {(payload: { token: string, user: any }) => void} [onAuth] - Optional callback to push auth state up
- */
-
-/** @param {LoginModalProps} props */
 export default function LoginModal({ onClose, onAuth }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,101 +17,20 @@ export default function LoginModal({ onClose, onAuth }) {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
- 
 
-  // const handleLogin = async () => {
-  //   if (!email || !password) {
-  //     setError("Both email and password are required.");
-  //     return;
-  //   }
+  const HARDCODED_EMAIL = "admin@intuteai.in";
+  const HARDCODED_PASSWORD = "password123";
 
-  //   setLoading(true);
-  //   setError("");
-
-  //   try {
-  //     const { data } = await axios.post(
-  //       `${API_BASE_URL}/api/auth/login`,
-  //       { email, password },
-  //       { headers: { "Content-Type": "application/json" } }
-  //     );
-
-  //     const { token, user } = data;
-
-  //     // SAVE JWT TOKEN (CRITICAL FOR LIVE DATA)
-  //     localStorage.setItem("token", token);
-
-  //     // Save user info + token
-  //     const authPayload = {
-  //       token,
-  //       name: user.name,
-  //       email: user.email,
-  //       role: user.role,
-  //     };
-  //     localStorage.setItem("user", JSON.stringify(authPayload));
-
-  //     // SAVE PASSWORD FOR MASTER DB ACCESS (as you already do)
-  //     localStorage.setItem("loginPassword", password);
-
-  //     // Notify parent component
-  //     if (typeof onAuth === "function") {
-  //       try {
-  //         onAuth({ token, user });
-  //       } catch (e) {
-  //         console.error(e);
-  //       }
-  //     }
-
-  //     // Fire global event
-  //     try {
-  //       window.dispatchEvent(
-  //         new CustomEvent("auth:login", { detail: { token, user } })
-  //       );
-  //     } catch (e) {
-  //       console.error(e);
-  //     }
-
-  //     // Navigate based on role
-  //     // inside LoginModal handleLogin, after successful login:
-  //     const isAdmin = user.role === "admin";
-  //     const target = isAdmin ? "/admin/splash" : "/customer/splash";
-
-  //     navigate(target, {
-  //       replace: true,
-  //       state: { fromLogin: true, ts: Date.now() },
-  //     });
-
-  //     // (Optional) you can remove the fallback entirely,
-  //     // but if you keep it, point to the same target:
-  //     setTimeout(() => {
-  //       if (window.location.pathname !== target) {
-  //         window.location.replace(target);
-  //       }
-  //     }, 50);
-
-  //     onClose?.();
-  //   } catch (err) {
-  //     const message =
-  //       err?.response?.data?.error ||
-  //       err?.response?.data?.message ||
-  //       "Invalid credentials. Please try again.";
-  //     setError(message);
-  //     console.error("Login failed:", err);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-const HARDCODED_EMAIL = "admin@intuteai.in";
-const HARDCODED_PASSWORD = "password123";
-    const handleLogin = async () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       setError("Both email and password are required.");
       return;
     }
 
     if (email !== HARDCODED_EMAIL || password !== HARDCODED_PASSWORD) {
-    setError("Invalid credentials.");
-    return;
-  }
+      setError("Invalid credentials.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -131,10 +44,8 @@ const HARDCODED_PASSWORD = "password123";
 
       const { token, user } = data;
 
-      // SAVE JWT TOKEN (CRITICAL FOR LIVE DATA)
       localStorage.setItem("token", token);
 
-      // Save user info + token
       const authPayload = {
         token,
         name: user.name,
@@ -143,10 +54,8 @@ const HARDCODED_PASSWORD = "password123";
       };
       localStorage.setItem("user", JSON.stringify(authPayload));
 
-      // SAVE PASSWORD FOR MASTER DB ACCESS (as you already do)
       localStorage.setItem("loginPassword", password);
 
-      // Notify parent component
       if (typeof onAuth === "function") {
         try {
           onAuth({ token, user });
@@ -155,7 +64,6 @@ const HARDCODED_PASSWORD = "password123";
         }
       }
 
-      // Fire global event
       try {
         window.dispatchEvent(
           new CustomEvent("auth:login", { detail: { token, user } })
@@ -164,8 +72,6 @@ const HARDCODED_PASSWORD = "password123";
         console.error(e);
       }
 
-      // Navigate based on role
-      // inside LoginModal handleLogin, after successful login:
       const isAdmin = user.role === "admin";
       const target = isAdmin ? "/admin/splash" : "/customer/splash";
 
@@ -174,8 +80,6 @@ const HARDCODED_PASSWORD = "password123";
         state: { fromLogin: true, ts: Date.now() },
       });
 
-      // (Optional) you can remove the fallback entirely,
-      // but if you keep it, point to the same target:
       setTimeout(() => {
         if (window.location.pathname !== target) {
           window.location.replace(target);
@@ -194,6 +98,7 @@ const HARDCODED_PASSWORD = "password123";
       setLoading(false);
     }
   };
+
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !loading) handleLogin();
   };
@@ -230,36 +135,19 @@ const HARDCODED_PASSWORD = "password123";
 
       <style jsx>{`
         @keyframes grid-move {
-          0% {
-            transform: translate(0, 0);
-          }
-          100% {
-            transform: translate(50px, 50px);
-          }
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(50px, 50px); }
         }
         @keyframes spin-slow {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
         @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 0.3;
-          }
-          50% {
-            opacity: 0.6;
-          }
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
         }
-        .animate-spin-slow {
-          animation: spin-slow 15s linear infinite;
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 4s ease-in-out infinite;
-        }
+        .animate-spin-slow { animation: spin-slow 15s linear infinite; }
+        .animate-pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
       `}</style>
 
       <div className="relative w-full max-w-md ">
@@ -328,11 +216,7 @@ const HARDCODED_PASSWORD = "password123";
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-orange-400"
                   disabled={loading}
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
