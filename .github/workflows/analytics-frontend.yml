@@ -24,11 +24,11 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - name: Build Analytics Backend Docker Image
+      - name: Build Analytics Frontend Docker Image
         run: |
           docker build -t intuteai/analytics-frontend:latest ./analytics-frontend
 
-      - name: Push Analytics Backend Docker Image
+      - name: Push Analytics Frontend Docker Image
         run: |
           docker push intuteai/analytics-frontend:latest
 
@@ -40,5 +40,5 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ~/website-docker
-            docker-compose pull analytics-frontend
-            docker-compose up -d analytics-frontend
+            docker compose pull analytics
+            docker compose up -d analytics
