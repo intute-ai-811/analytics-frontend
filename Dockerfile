@@ -15,11 +15,11 @@ COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY . .
-ENV NODE_ENV=production
 
-# ✅ ADD THESE TWO LINES
-ARG VITE_API_URL=/api
+# ✅ ARG must come before ENV so it can be overridden at build time
+ARG VITE_API_URL=""
 ENV VITE_API_URL=$VITE_API_URL
+ENV NODE_ENV=production
 
 RUN npm run build
 
