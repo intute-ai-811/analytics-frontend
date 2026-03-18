@@ -24,7 +24,7 @@ jobs:
 
       - name: Build Analytics Frontend Docker Image
         run: |
-          docker build -t intuteai/analytics-frontend:latest .
+          docker build --build-arg VITE_API_URL="" -t intuteai/analytics-frontend:latest .
 
       - name: Push Analytics Frontend Docker Image
         run: |
