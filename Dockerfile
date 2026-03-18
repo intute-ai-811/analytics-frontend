@@ -16,6 +16,11 @@ RUN npm ci --no-audit --no-fund
 
 COPY . .
 ENV NODE_ENV=production
+
+# ✅ ADD THESE TWO LINES
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # ---- Run stage (no nginx) ----
