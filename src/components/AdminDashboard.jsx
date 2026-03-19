@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 const PAGE_SIZE = 10;
 
 const apiClient = axios.create({

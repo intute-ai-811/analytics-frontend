@@ -15,21 +15,21 @@ import {
   Settings,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-// import erdeLogo from "../assets/ERDE_HorizontalLogo_PNG.png";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 function Header({ user, onLogout }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showMastersModal, setShowMastersModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  // Change Password Form State
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Visibility toggles
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -51,11 +51,11 @@ function Header({ user, onLogout }) {
   const toggleSidebar = () => setIsSidebarOpen((s) => !s);
 
   const masters = [
-    { key: "customers", label: "Customer Database", to: "/masters/customers" },
-    { key: "vehicle-types", label: "Vehicle Type Master Database", to: "/masters/vehicle-types" },
-    { key: "vcu", label: "VCU Master Database", to: "/masters/vcu" },
-    { key: "hmi", label: "HMI Master Database", to: "/masters/hmi" },
-    { key: "vehicles", label: "Vehicle Master Database", to: "/masters/vehicles" },
+    { key: "customers",     label: "Customer Database",              to: "/masters/customers" },
+    { key: "vehicle-types", label: "Vehicle Type Master Database",   to: "/masters/vehicle-types" },
+    { key: "vcu",           label: "VCU Master Database",            to: "/masters/vcu" },
+    { key: "hmi",           label: "HMI Master Database",            to: "/masters/hmi" },
+    { key: "vehicles",      label: "Vehicle Master Database",        to: "/masters/vehicles" },
   ];
 
   const goTo = (to) => {
@@ -65,11 +65,8 @@ function Header({ user, onLogout }) {
 
   const goToDashboard = () => {
     setIsSidebarOpen(false);
-    if (isAdmin) {
-      navigate("/admin");
-    } else if (isCustomer) {
-      navigate("/dashboard");
-    }
+    if (isAdmin) navigate("/admin");
+    else if (isCustomer) navigate("/dashboard");
   };
 
   const handleChangePassword = async (e) => {
@@ -143,10 +140,6 @@ function Header({ user, onLogout }) {
               </svg>
             </button>
           )}
-
-          {/* <div className="absolute left-1/2 -translate-x-1/2">
-            <img src={erdeLogo} alt="ERDE Logo" className="h-11 opacity-95" />
-          </div> */}
 
           <div className="ml-auto flex items-center gap-6">
             <div className="text-right">
@@ -232,7 +225,7 @@ function Header({ user, onLogout }) {
         </>
       )}
 
-      {/* MASTERS MODAL - FULLY FIXED & WORKING */}
+      {/* MASTERS MODAL */}
       {isAdmin && showMastersModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
@@ -263,9 +256,7 @@ function Header({ user, onLogout }) {
                   className="w-full flex items-center gap-4 px-6 py-5 rounded-xl bg-gray-800/50 border border-orange-500/30 hover:bg-orange-500/10 hover:border-orange-400 transition-all group"
                 >
                   <Settings className="w-6 h-6 text-orange-400 group-hover:text-orange-300" />
-                  <span className="text-left text-white font-medium flex-1">
-                    {master.label}
-                  </span>
+                  <span className="text-left text-white font-medium flex-1">{master.label}</span>
                   <ArrowRight className="w-5 h-5 text-orange-400 group-hover:text-orange-300 group-hover:translate-x-1 transition" />
                 </button>
               ))}
@@ -283,7 +274,7 @@ function Header({ user, onLogout }) {
         </div>
       )}
 
-      {/* EDIT PROFILE MODAL - CHANGE PASSWORD */}
+      {/* EDIT PROFILE MODAL */}
       {showProfileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/70" onClick={() => setShowProfileModal(false)} />
@@ -295,9 +286,7 @@ function Header({ user, onLogout }) {
 
             <form onSubmit={handleChangePassword} className="space-y-5">
               <div className="relative">
-                <label className="block text-sm font-medium text-orange-200 mb-2">
-                  Current Password
-                </label>
+                <label className="block text-sm font-medium text-orange-200 mb-2">Current Password</label>
                 <input
                   type={showCurrent ? "text" : "password"}
                   value={currentPassword}
@@ -305,19 +294,14 @@ function Header({ user, onLogout }) {
                   required
                   className="w-full px-4 py-3 pr-12 bg-gray-800 border border-orange-500/30 rounded-lg text-white focus:border-orange-400 outline-none transition"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrent(!showCurrent)}
-                  className="absolute right-3 top-10 text-orange-400 hover:text-orange-300 transition"
-                >
+                <button type="button" onClick={() => setShowCurrent(!showCurrent)}
+                  className="absolute right-3 top-10 text-orange-400 hover:text-orange-300 transition">
                   {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
 
               <div className="relative">
-                <label className="block text-sm font-medium text-orange-200 mb-2">
-                  New Password
-                </label>
+                <label className="block text-sm font-medium text-orange-200 mb-2">New Password</label>
                 <input
                   type={showNew ? "text" : "password"}
                   value={newPassword}
@@ -326,19 +310,14 @@ function Header({ user, onLogout }) {
                   minLength="8"
                   className="w-full px-4 py-3 pr-12 bg-gray-800 border border-orange-500/30 rounded-lg text-white focus:border-orange-400 outline-none transition"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowNew(!showNew)}
-                  className="absolute right-3 top-10 text-orange-400 hover:text-orange-300 transition"
-                >
+                <button type="button" onClick={() => setShowNew(!showNew)}
+                  className="absolute right-3 top-10 text-orange-400 hover:text-orange-300 transition">
                   {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
 
               <div className="relative">
-                <label className="block text-sm font-medium text-orange-200 mb-2">
-                  Confirm New Password
-                </label>
+                <label className="block text-sm font-medium text-orange-200 mb-2">Confirm New Password</label>
                 <input
                   type={showConfirm ? "text" : "password"}
                   value={confirmPassword}
@@ -346,28 +325,19 @@ function Header({ user, onLogout }) {
                   required
                   className="w-full px-4 py-3 pr-12 bg-gray-800 border border-orange-500/30 rounded-lg text-white focus:border-orange-400 outline-none transition"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3 top-10 text-orange-400 hover:text-orange-300 transition"
-                >
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-10 text-orange-400 hover:text-orange-300 transition">
                   {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
 
               {message.text && (
-                <div
-                  className={`flex items-center gap-2 p-3 rounded-lg ${
-                    message.type === "success"
-                      ? "bg-green-500/20 text-green-300 border border-green-500/40"
-                      : "bg-red-500/20 text-red-300 border border-red-500/40"
-                  }`}
-                >
-                  {message.type === "success" ? (
-                    <CheckCircle className="w-5 h-5" />
-                  ) : (
-                    <XCircle className="w-5 h-5" />
-                  )}
+                <div className={`flex items-center gap-2 p-3 rounded-lg ${
+                  message.type === "success"
+                    ? "bg-green-500/20 text-green-300 border border-green-500/40"
+                    : "bg-red-500/20 text-red-300 border border-red-500/40"
+                }`}>
+                  {message.type === "success" ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                   <span className="text-sm">{message.text}</span>
                 </div>
               )}
@@ -378,14 +348,7 @@ function Header({ user, onLogout }) {
                   disabled={loading}
                   className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 rounded-xl font-bold text-white disabled:opacity-60 transition"
                 >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Changing...
-                    </>
-                  ) : (
-                    "Change Password"
-                  )}
+                  {loading ? <><Loader2 className="w-5 h-5 animate-spin" />Changing...</> : "Change Password"}
                 </button>
 
                 <button

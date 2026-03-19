@@ -10,7 +10,10 @@ import {
 import axios from "axios";
 
 /* ================= BACKEND ================= */
-const API_BASE = "http://localhost:5000/api/customers";
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
+const API_BASE = `${import.meta.env.VITE_API_URL ?? ""}/api/customers`;
 
 const getAuthHeaders = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");

@@ -9,8 +9,11 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
-// API Base URLs
-const API_BASE = "http://localhost:5000/api/hmi";
+/* ================= BACKEND ================= */
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
+const API_BASE = `${import.meta.env.VITE_API_URL ?? ""}/api/hmi`;
 
 const getAuthHeaders = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -67,12 +70,7 @@ export default function HMIMaster() {
   /* ===================== MODAL ===================== */
   const openNew = () => {
     setEditing(null);
-    setForm({
-      hmi_make: "",
-      hmi_model: "",
-      imei_number: "",
-      hmi_specs: "",
-    });
+    setForm({ hmi_make: "", hmi_model: "", imei_number: "", hmi_specs: "" });
     setShowModal(true);
   };
 
@@ -97,7 +95,7 @@ export default function HMIMaster() {
     }
 
     const payload = {
-      hmi_make: form.hmi_make.trim().toUpperCase(),      // final safety
+      hmi_make: form.hmi_make.trim().toUpperCase(),
       hmi_model: form.hmi_model.trim(),
       imei_number: form.imei_number.trim(),
       hmi_specs: form.hmi_specs?.trim() || null,
@@ -105,23 +103,16 @@ export default function HMIMaster() {
 
     try {
       if (!editing) {
-        // CREATE
         const { data } = await axios.post(API_BASE, payload, {
           headers: getAuthHeaders(),
         });
-        setRows((prev) => [
-          { ...payload, hmi_id: data.hmi_id },
-          ...prev,
-        ]);
+        setRows((prev) => [{ ...payload, hmi_id: data.hmi_id }, ...prev]);
       } else {
-        // UPDATE
         await axios.put(`${API_BASE}/${editing.hmi_id}`, payload, {
           headers: getAuthHeaders(),
         });
         setRows((prev) =>
-          prev.map((r) =>
-            r.hmi_id === editing.hmi_id ? { ...r, ...payload } : r
-          )
+          prev.map((r) => r.hmi_id === editing.hmi_id ? { ...r, ...payload } : r)
         );
       }
       setShowModal(false);
@@ -134,9 +125,7 @@ export default function HMIMaster() {
   const removeRow = async (id) => {
     if (!confirm("Delete this HMI?")) return;
     try {
-      await axios.delete(`${API_BASE}/${id}`, {
-        headers: getAuthHeaders(),
-      });
+      await axios.delete(`${API_BASE}/${id}`, { headers: getAuthHeaders() });
       setRows((prev) => prev.filter((r) => r.hmi_id !== id));
     } catch (e) {
       alert(e.response?.data?.error || "Cannot delete HMI (likely in use)");
@@ -148,12 +137,7 @@ export default function HMIMaster() {
     const headers = "HMI Make,HMI Model,IMEI Number,HMI Specs\n";
     const csv = rows
       .map((r) =>
-        [
-          r.hmi_make,
-          r.hmi_model,
-          r.imei_number,
-          r.hmi_specs || "",
-        ]
+        [r.hmi_make, r.hmi_model, r.imei_number, r.hmi_specs || ""]
           .map((v) => `"${v}"`)
           .join(",")
       )
@@ -189,16 +173,10 @@ export default function HMIMaster() {
               className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30"
             />
           </div>
-          <button
-            onClick={exportCSV}
-            className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 flex gap-2"
-          >
+          <button onClick={exportCSV} className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 flex gap-2">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button
-            onClick={openNew}
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex gap-2"
-          >
+          <button onClick={openNew} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex gap-2">
             <Plus className="w-5 h-5" /> Add HMI
           </button>
         </div>
@@ -216,39 +194,27 @@ export default function HMIMaster() {
             <thead className="bg-black/50">
               <tr>
                 {["Make", "Model", "IMEI Number", "Specs", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 text-left text-orange-200">
-                    {h}
-                  </th>
+                  <th key={h} className="px-6 py-4 text-left text-orange-200">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-16 text-orange-400">
-                    No HMIs found
-                  </td>
+                  <td colSpan={5} className="text-center py-16 text-orange-400">No HMIs found</td>
                 </tr>
               ) : (
                 filtered.map((r) => (
                   <tr key={r.hmi_id} className="border-t border-orange-500/10">
                     <td className="px-6 py-4 font-bold">{r.hmi_make}</td>
                     <td className="px-6 py-4">{r.hmi_model}</td>
-                    <td className="px-6 py-4 font-mono text-sm">
-                      {r.imei_number}
-                    </td>
+                    <td className="px-6 py-4 font-mono text-sm">{r.imei_number}</td>
                     <td className="px-6 py-4 text-sm">{r.hmi_specs || "-"}</td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => openEdit(r)}
-                        className="p-2 hover:bg-orange-500/20 rounded"
-                      >
+                      <button onClick={() => openEdit(r)} className="p-2 hover:bg-orange-500/20 rounded">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => removeRow(r.hmi_id)}
-                        className="p-2 hover:bg-red-500/20 rounded ml-2"
-                      >
+                      <button onClick={() => removeRow(r.hmi_id)} className="p-2 hover:bg-red-500/20 rounded ml-2">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
@@ -271,9 +237,7 @@ export default function HMIMaster() {
                 <Input
                   label="HMI Make *"
                   value={form.hmi_make}
-                  onChange={(v) =>
-                    setForm({ ...form, hmi_make: v.toUpperCase() })
-                  }
+                  onChange={(v) => setForm({ ...form, hmi_make: v.toUpperCase() })}
                   className="uppercase tracking-wide"
                 />
                 <Input
@@ -294,16 +258,10 @@ export default function HMIMaster() {
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-6 py-3 rounded-xl border border-orange-500/30"
-                >
+                <button onClick={() => setShowModal(false)} className="px-6 py-3 rounded-xl border border-orange-500/30">
                   Cancel
                 </button>
-                <button
-                  onClick={saveForm}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold"
-                >
+                <button onClick={saveForm} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold">
                   Save
                 </button>
               </div>

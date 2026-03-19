@@ -3,7 +3,10 @@ import { Search, Download, Plus, Pencil, Trash2, AlertCircle } from "lucide-reac
 import axios from "axios";
 
 /* ===================== API ===================== */
-const API_BASE = "http://localhost:5000/api/vcu";
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
+const API_BASE = `${import.meta.env.VITE_API_URL ?? ""}/api/vcu`;
 
 const getAuthHeaders = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -31,9 +34,7 @@ export default function VCUMaster() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await axios.get(API_BASE, {
-        headers: getAuthHeaders(),
-      });
+      const { data } = await axios.get(API_BASE, { headers: getAuthHeaders() });
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e.response?.data?.error || "Failed to load VCUs");
@@ -51,21 +52,14 @@ export default function VCUMaster() {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
     return rows.filter((r) =>
-      `${r.vcu_make} ${r.vcu_model} ${r.serial_number}`
-        .toLowerCase()
-        .includes(q)
+      `${r.vcu_make} ${r.vcu_model} ${r.serial_number}`.toLowerCase().includes(q)
     );
   }, [rows, query]);
 
   /* ===================== MODAL ===================== */
   const openNew = () => {
     setEditing(null);
-    setForm({
-      vcu_make: "",
-      vcu_model: "",
-      serial_number: "",
-      vcu_specs: "",
-    });
+    setForm({ vcu_make: "", vcu_model: "", serial_number: "", vcu_specs: "" });
     setShowModal(true);
   };
 
@@ -74,7 +68,7 @@ export default function VCUMaster() {
     setForm({
       vcu_make: r.vcu_make || "",
       vcu_model: r.vcu_model || "",
-      serial_number: r.serial_number?.toUpperCase() || "", // Ensure uppercase on load
+      serial_number: r.serial_number?.toUpperCase() || "",
       vcu_specs: r.vcu_specs || "",
     });
     setShowModal(true);
@@ -98,23 +92,12 @@ export default function VCUMaster() {
 
     try {
       if (!editing) {
-        // CREATE
-        const { data } = await axios.post(API_BASE, payload, {
-          headers: getAuthHeaders(),
-        });
-        setRows((prev) => [
-          { ...payload, vcu_id: data.vcu_id },
-          ...prev,
-        ]);
+        const { data } = await axios.post(API_BASE, payload, { headers: getAuthHeaders() });
+        setRows((prev) => [{ ...payload, vcu_id: data.vcu_id }, ...prev]);
       } else {
-        // UPDATE
-        await axios.put(`${API_BASE}/${editing.vcu_id}`, payload, {
-          headers: getAuthHeaders(),
-        });
+        await axios.put(`${API_BASE}/${editing.vcu_id}`, payload, { headers: getAuthHeaders() });
         setRows((prev) =>
-          prev.map((r) =>
-            r.vcu_id === editing.vcu_id ? { ...r, ...payload } : r
-          )
+          prev.map((r) => r.vcu_id === editing.vcu_id ? { ...r, ...payload } : r)
         );
       }
       setShowModal(false);
@@ -127,9 +110,7 @@ export default function VCUMaster() {
   const removeRow = async (id) => {
     if (!confirm("Delete this VCU?")) return;
     try {
-      await axios.delete(`${API_BASE}/${id}`, {
-        headers: getAuthHeaders(),
-      });
+      await axios.delete(`${API_BASE}/${id}`, { headers: getAuthHeaders() });
       setRows((prev) => prev.filter((r) => r.vcu_id !== id));
     } catch (e) {
       alert(e.response?.data?.error || "Cannot delete VCU");
@@ -141,12 +122,7 @@ export default function VCUMaster() {
     const headers = "VCU Make,VCU Model,Serial Number,VCU Specs\n";
     const csv = rows
       .map((r) =>
-        [
-          r.vcu_make,
-          r.vcu_model,
-          r.serial_number,
-          r.vcu_specs || "",
-        ]
+        [r.vcu_make, r.vcu_model, r.serial_number, r.vcu_specs || ""]
           .map((v) => `"${v}"`)
           .join(",")
       )
@@ -182,16 +158,10 @@ export default function VCUMaster() {
               className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30"
             />
           </div>
-          <button
-            onClick={exportCSV}
-            className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 flex gap-2"
-          >
+          <button onClick={exportCSV} className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 flex gap-2">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button
-            onClick={openNew}
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex gap-2"
-          >
+          <button onClick={openNew} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex gap-2">
             <Plus className="w-5 h-5" /> Add VCU
           </button>
         </div>
@@ -209,39 +179,27 @@ export default function VCUMaster() {
             <thead className="bg-black/50">
               <tr>
                 {["Make", "Model", "Serial Number", "Specs", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 text-left text-orange-200">
-                    {h}
-                  </th>
+                  <th key={h} className="px-6 py-4 text-left text-orange-200">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-16 text-orange-400">
-                    No VCUs found
-                  </td>
+                  <td colSpan={5} className="text-center py-16 text-orange-400">No VCUs found</td>
                 </tr>
               ) : (
                 filtered.map((r) => (
                   <tr key={r.vcu_id} className="border-t border-orange-500/10">
                     <td className="px-6 py-4 font-bold">{r.vcu_make}</td>
                     <td className="px-6 py-4">{r.vcu_model}</td>
-                    <td className="px-6 py-4 font-mono text-sm uppercase">
-                      {r.serial_number}
-                    </td>
+                    <td className="px-6 py-4 font-mono text-sm uppercase">{r.serial_number}</td>
                     <td className="px-6 py-4 text-sm">{r.vcu_specs || "-"}</td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => openEdit(r)}
-                        className="p-2 hover:bg-orange-500/20 rounded"
-                      >
+                      <button onClick={() => openEdit(r)} className="p-2 hover:bg-orange-500/20 rounded">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => removeRow(r.vcu_id)}
-                        className="p-2 hover:bg-red-500/20 rounded ml-2"
-                      >
+                      <button onClick={() => removeRow(r.vcu_id)} className="p-2 hover:bg-red-500/20 rounded ml-2">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
@@ -264,9 +222,7 @@ export default function VCUMaster() {
                 <Input
                   label="VCU Make *"
                   value={form.vcu_make}
-                  onChange={(v) =>
-                    setForm({ ...form, vcu_make: v.toUpperCase() })
-                  }
+                  onChange={(v) => setForm({ ...form, vcu_make: v.toUpperCase() })}
                   className="uppercase tracking-wide"
                 />
                 <Input
@@ -278,11 +234,7 @@ export default function VCUMaster() {
                   label="Serial Number *"
                   value={form.serial_number}
                   onChange={(v) => {
-                    // Allow A-Z, 0-9 and safe special characters: - _ . / :
-                    const cleaned = v
-                      .replace(/[^A-Z0-9\-_.:/]/gi, "")
-                      .toUpperCase();
-
+                    const cleaned = v.replace(/[^A-Z0-9\-_.:/]/gi, "").toUpperCase();
                     setForm({ ...form, serial_number: cleaned });
                   }}
                   className="uppercase font-mono tracking-wide"
@@ -296,16 +248,10 @@ export default function VCUMaster() {
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-6 py-3 rounded-xl border border-orange-500/30"
-                >
+                <button onClick={() => setShowModal(false)} className="px-6 py-3 rounded-xl border border-orange-500/30">
                   Cancel
                 </button>
-                <button
-                  onClick={saveForm}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold"
-                >
+                <button onClick={saveForm} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold">
                   Save
                 </button>
               </div>

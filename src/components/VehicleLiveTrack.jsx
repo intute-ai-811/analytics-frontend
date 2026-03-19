@@ -5,8 +5,10 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.marker.slideto";
 import { ArrowLeft, Wifi, WifiOff } from "lucide-react";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 /* =========================
    LIVE THRESHOLDS
@@ -101,7 +103,6 @@ export default function VehicleLiveTrack() {
       opacity: 0.8,
     }).addTo(mapRef.current);
 
-    // IMPORTANT: fix flex-layout rendering
     setTimeout(() => {
       mapRef.current?.invalidateSize();
     }, 0);
@@ -227,8 +228,8 @@ export default function VehicleLiveTrack() {
       {/* ================= MAP ================= */}
       <div className="flex-1 relative" style={{ minHeight: '500px' }}>
         <div id="live-map" className="absolute inset-0" />
-        
-        {/* Recenter Button - Top Right */}
+
+        {/* Recenter Button */}
         <button
           onClick={() => {
             setFollow(true);
@@ -237,15 +238,15 @@ export default function VehicleLiveTrack() {
             }
           }}
           className={`absolute top-4 right-4 z-[1000] px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-lg ${
-            follow 
-              ? 'bg-emerald-600/80 text-white backdrop-blur-sm' 
+            follow
+              ? 'bg-emerald-600/80 text-white backdrop-blur-sm'
               : 'bg-white/90 text-gray-800 hover:bg-white backdrop-blur-sm'
           }`}
         >
           {follow ? '📍 Following' : 'Recenter'}
         </button>
-        
-        {/* Intute.ai Branding */}
+
+        {/* Branding */}
         <div className="absolute bottom-4 right-4 z-[1000]">
           <a
             href="https://www.intute.in/"
@@ -257,7 +258,7 @@ export default function VehicleLiveTrack() {
           </a>
         </div>
       </div>
-      
+
       <style>{`
         .leaflet-control-attribution {
           display: none !important;

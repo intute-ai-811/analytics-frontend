@@ -1,8 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
 /* ============================================================
-   COLUMN DEFINITIONS  (single source of truth — mirrors backend)
+   COLUMN DEFINITIONS
    ============================================================ */
 const COLUMNS = [
   { key: "recorded_at",                 label: "Timestamp",                       alwaysVisible: true },
@@ -109,7 +114,6 @@ export default function DatabaseLogs() {
 
   const todayStr = fmtDate(new Date());
 
-  // ---- display state ----
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [rows, setRows]                 = useState([]);
   const [cursor, setCursor]             = useState(null);
@@ -118,17 +122,15 @@ export default function DatabaseLogs() {
   const [error, setError]               = useState(null);
   const loadMoreRef                     = useRef(null);
 
-  // ---- column visibility ----
   const [selectedCols, setSelectedCols] = useState(
     () => new Set(COLUMNS.filter(c => !c.alwaysVisible).map(c => c.key))
   );
 
-  // ---- export state ----
   const [exportMode, setExportMode]         = useState("today");
   const [customStart, setCustomStart]       = useState(todayStr);
   const [customEnd, setCustomEnd]           = useState(todayStr);
   const [exporting, setExporting]           = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);   // 0-100
+  const [exportProgress, setExportProgress] = useState(0);
   const [exportTotal, setExportTotal]       = useState(0);
   const [exportCurrent, setExportCurrent]   = useState(0);
   const [exportEta, setExportEta]           = useState(null);
@@ -136,13 +138,13 @@ export default function DatabaseLogs() {
   const exportAbort                         = useRef(null);
 
   /* ========================= COLUMN HELPERS ========================= */
-  const toggleCol    = useCallback(key => setSelectedCols(prev => {
+  const toggleCol     = useCallback(key => setSelectedCols(prev => {
     const next = new Set(prev);
     next.has(key) ? next.delete(key) : next.add(key);
     return next;
   }), []);
 
-  const selectAllCols  = () => setSelectedCols(new Set(COLUMNS.filter(c => !c.alwaysVisible).map(c => c.key)));
+  const selectAllCols   = () => setSelectedCols(new Set(COLUMNS.filter(c => !c.alwaysVisible).map(c => c.key)));
   const deselectAllCols = () => setSelectedCols(new Set());
 
   const visibleColumns = COLUMNS.filter(c => c.alwaysVisible || selectedCols.has(c.key));
@@ -157,7 +159,7 @@ export default function DatabaseLogs() {
       const params = new URLSearchParams({ date: selectedDate });
       if (!reset && cursor) params.set("cursor", cursor);
 
-      const res = await fetch(`/api/database-logs/${vehicleId}?${params}`, {
+      const res = await fetch(`${API_BASE_URL}/api/database-logs/${vehicleId}?${params}`, {
         headers: authHeaders(),
       });
 
@@ -188,7 +190,6 @@ export default function DatabaseLogs() {
   const exportData = async () => {
     if (exporting) return;
 
-    // Reset export state
     setExporting(true);
     setExportProgress(0);
     setExportTotal(0);
@@ -201,7 +202,6 @@ export default function DatabaseLogs() {
     exportAbort.current = abort;
 
     try {
-      // Build URL params
       const exportParams = new URLSearchParams();
 
       if (exportMode === "custom") {
@@ -216,7 +216,6 @@ export default function DatabaseLogs() {
         exportParams.set("period", "today");
       }
 
-      // Only send the columns the user has selected
       const colsToExport = COLUMNS
         .filter(c => c.alwaysVisible || selectedCols.has(c.key))
         .map(c => c.key);
@@ -224,9 +223,9 @@ export default function DatabaseLogs() {
 
       const headers = authHeaders();
 
-      // ---- Step 1: get total count ----
+      // Step 1: get total count
       const countRes = await fetch(
-        `/api/database-logs/${vehicleId}/count?${exportParams}`,
+        `${API_BASE_URL}/api/database-logs/${vehicleId}/count?${exportParams}`,
         { headers, signal: abort.signal }
       );
       if (!countRes.ok) throw new Error("Failed to get row count");
@@ -241,9 +240,9 @@ export default function DatabaseLogs() {
 
       setExportTotal(total);
 
-      // ---- Step 2: streaming export ----
+      // Step 2: streaming export
       const exportRes = await fetch(
-        `/api/database-logs/${vehicleId}/export?${exportParams}`,
+        `${API_BASE_URL}/api/database-logs/${vehicleId}/export?${exportParams}`,
         { headers, signal: abort.signal }
       );
 
@@ -255,7 +254,6 @@ export default function DatabaseLogs() {
       const knownTotal = parseInt(exportRes.headers.get("X-Total-Rows") ?? "0", 10) || total;
       setExportTotal(knownTotal);
 
-      // Rolling 5-second window for ETA
       const RATE_WINDOW_MS = 5000;
       const rateWindow = [];
       const AVG_BYTES_PER_ROW = 150;
@@ -275,12 +273,10 @@ export default function DatabaseLogs() {
         const estimatedRows = Math.min(Math.floor(receivedBytes / AVG_BYTES_PER_ROW), knownTotal);
         rateWindow.push({ time: now, rows: estimatedRows });
 
-        // Trim old entries
         while (rateWindow.length > 1 && now - rateWindow[0].time > RATE_WINDOW_MS) {
           rateWindow.shift();
         }
 
-        // Compute ETA from rolling window
         let eta = null;
         if (rateWindow.length >= 2) {
           const dt = (rateWindow.at(-1).time - rateWindow[0].time) / 1000;
@@ -294,7 +290,6 @@ export default function DatabaseLogs() {
         setExportProgress(knownTotal > 0 ? Math.min((estimatedRows / knownTotal) * 100, 99) : 0);
       }
 
-      // Download the blob
       const blob = new Blob(chunks, { type: "text/csv" });
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -345,7 +340,6 @@ export default function DatabaseLogs() {
   };
 
   /* ========================= EFFECTS ========================= */
-  // Reset + reload when vehicle or date changes
   useEffect(() => {
     setRows([]);
     setCursor(null);
@@ -353,7 +347,6 @@ export default function DatabaseLogs() {
     setError(null);
   }, [vehicleId, selectedDate]);
 
-  // Trigger initial fetch after reset
   useEffect(() => {
     if (rows.length === 0 && hasMore && !loading) {
       fetchLogs(true);
@@ -361,7 +354,6 @@ export default function DatabaseLogs() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId, selectedDate]);
 
-  // Infinite scroll via IntersectionObserver
   useEffect(() => {
     if (!hasMore || rows.length === 0) return;
 
@@ -382,10 +374,8 @@ export default function DatabaseLogs() {
         Raw Telemetry Logs
       </h2>
 
-      {/* ---- Controls Panel ---- */}
       <div className="bg-gray-900/90 border border-orange-500/30 rounded-xl p-6 shadow-lg space-y-6">
 
-        {/* Date + export range row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="flex items-center gap-3">
             <label className="text-orange-300 font-medium min-w-32">Display Date:</label>
@@ -411,34 +401,21 @@ export default function DatabaseLogs() {
           </div>
         </div>
 
-        {/* Custom date range */}
         {exportMode === "custom" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-800/30 rounded-lg border border-orange-500/20">
             <div className="flex items-center gap-3">
               <label className="text-orange-300 font-medium">Start Date:</label>
-              <input
-                type="date"
-                value={customStart}
-                max={customEnd}
-                onChange={e => setCustomStart(e.target.value)}
-                className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition"
-              />
+              <input type="date" value={customStart} max={customEnd} onChange={e => setCustomStart(e.target.value)}
+                className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition" />
             </div>
             <div className="flex items-center gap-3">
               <label className="text-orange-300 font-medium">End Date:</label>
-              <input
-                type="date"
-                value={customEnd}
-                min={customStart}
-                max={todayStr}
-                onChange={e => setCustomEnd(e.target.value)}
-                className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition"
-              />
+              <input type="date" value={customEnd} min={customStart} max={todayStr} onChange={e => setCustomEnd(e.target.value)}
+                className="px-4 py-2 bg-gray-800 border border-orange-500/50 rounded-lg text-orange-200 focus:border-orange-400 outline-none transition" />
             </div>
           </div>
         )}
 
-        {/* Export button + progress */}
         <div className="flex flex-col items-center gap-4">
           <div className="flex gap-3">
             <button
@@ -447,41 +424,27 @@ export default function DatabaseLogs() {
               className="px-10 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl font-bold text-lg shadow-xl hover:shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center gap-3"
             >
               {exporting ? (
-                <>
-                  <SpinnerIcon />
-                  Exporting… {exportProgress > 0 ? `${exportProgress.toFixed(0)}%` : "Preparing…"}
-                </>
+                <><SpinnerIcon />Exporting… {exportProgress > 0 ? `${exportProgress.toFixed(0)}%` : "Preparing…"}</>
               ) : exportDone ? (
-                <>
-                  <CheckIcon />
-                  Export Complete!
-                </>
+                <><CheckIcon />Export Complete!</>
               ) : (
-                <>
-                  <DownloadIcon />
-                  Export Data
-                </>
+                <><DownloadIcon />Export Data</>
               )}
             </button>
 
             {exporting && (
-              <button
-                onClick={cancelExport}
-                className="px-5 py-4 bg-red-700/80 hover:bg-red-600 text-white rounded-xl font-semibold transition"
-              >
+              <button onClick={cancelExport} className="px-5 py-4 bg-red-700/80 hover:bg-red-600 text-white rounded-xl font-semibold transition">
                 Cancel
               </button>
             )}
           </div>
 
-          {/* Preparing banner (before we know the total) */}
           {exporting && exportTotal === 0 && (
             <div className="w-full max-w-2xl p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-center">
               <p className="text-blue-300 text-sm">⏳ Calculating row count — this is fast, please wait…</p>
             </div>
           )}
 
-          {/* Progress bar */}
           {exporting && exportTotal > 0 && (
             <div className="w-full max-w-2xl space-y-2">
               <div className="flex justify-between text-sm text-orange-300">
@@ -497,45 +460,27 @@ export default function DatabaseLogs() {
                   style={{ width: `${exportProgress}%` }}
                 >
                   {exportProgress > 12 && (
-                    <span className="text-xs font-bold text-white drop-shadow">
-                      {exportProgress.toFixed(0)}%
-                    </span>
+                    <span className="text-xs font-bold text-white drop-shadow">{exportProgress.toFixed(0)}%</span>
                   )}
                 </div>
               </div>
-              <p className="text-center text-xs text-orange-400/60">
-                ⏳ Download starts automatically when ready.
-              </p>
+              <p className="text-center text-xs text-orange-400/60">⏳ Download starts automatically when ready.</p>
             </div>
           )}
         </div>
 
-        {/* Error banner */}
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-300 text-sm text-center">
-            {error}
-          </div>
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-300 text-sm text-center">{error}</div>
         )}
 
-        {/* ---- Column selector ---- */}
         <div className="pt-6 border-t border-orange-500/20">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-orange-400 font-semibold">
               Visible Columns ({visibleColumns.length} / {COLUMNS.length})
             </h3>
             <div className="flex gap-2">
-              <button
-                onClick={selectAllCols}
-                className="text-xs px-4 py-1.5 bg-orange-500/20 border border-orange-500/40 rounded hover:bg-orange-500/30 transition"
-              >
-                Select All
-              </button>
-              <button
-                onClick={deselectAllCols}
-                className="text-xs px-4 py-1.5 bg-gray-800/50 border border-orange-500/30 rounded hover:bg-gray-700/50 transition"
-              >
-                Clear
-              </button>
+              <button onClick={selectAllCols} className="text-xs px-4 py-1.5 bg-orange-500/20 border border-orange-500/40 rounded hover:bg-orange-500/30 transition">Select All</button>
+              <button onClick={deselectAllCols} className="text-xs px-4 py-1.5 bg-gray-800/50 border border-orange-500/30 rounded hover:bg-gray-700/50 transition">Clear</button>
             </div>
           </div>
 
@@ -549,12 +494,7 @@ export default function DatabaseLogs() {
                     : "bg-gray-800/40 border-gray-700 text-orange-200"
                 } hover:bg-orange-500/10`}
               >
-                <input
-                  type="checkbox"
-                  checked={selectedCols.has(col.key)}
-                  onChange={() => toggleCol(col.key)}
-                  className="w-4 h-4 accent-orange-500 rounded flex-shrink-0"
-                />
+                <input type="checkbox" checked={selectedCols.has(col.key)} onChange={() => toggleCol(col.key)} className="w-4 h-4 accent-orange-500 rounded flex-shrink-0" />
                 <span className="truncate">{col.label}</span>
               </label>
             ))}
@@ -562,50 +502,35 @@ export default function DatabaseLogs() {
         </div>
       </div>
 
-      {/* ---- Data Table ---- */}
       <div className="bg-gray-900/90 border border-orange-500/30 rounded-xl overflow-hidden shadow-lg">
         <div className="px-6 py-4 bg-gray-950/80 border-b border-orange-500/20 text-orange-300 font-medium flex justify-between items-center">
-          <span>
-            {rows.length.toLocaleString()} record{rows.length !== 1 ? "s" : ""} for {selectedDate}
-          </span>
+          <span>{rows.length.toLocaleString()} record{rows.length !== 1 ? "s" : ""} for {selectedDate}</span>
           {loading && rows.length > 0 && (
-            <span className="text-xs text-orange-400/70 flex items-center gap-1">
-              <SpinnerIcon small /> Loading…
-            </span>
+            <span className="text-xs text-orange-400/70 flex items-center gap-1"><SpinnerIcon small /> Loading…</span>
           )}
         </div>
 
         <div className="overflow-auto max-h-[700px]">
-          {/* Initial loading */}
           {loading && rows.length === 0 && (
             <div className="p-16 text-center text-orange-400/70 flex flex-col items-center gap-3">
-              <SpinnerIcon />
-              <span>Loading telemetry data…</span>
+              <SpinnerIcon /><span>Loading telemetry data…</span>
             </div>
           )}
 
-          {/* Empty state */}
           {!loading && rows.length === 0 && !error && (
-            <div className="p-16 text-center text-orange-400/70">
-              No telemetry data available for {selectedDate}
-            </div>
+            <div className="p-16 text-center text-orange-400/70">No telemetry data available for {selectedDate}</div>
           )}
 
-          {/* Error state (table-level) */}
           {error && rows.length === 0 && (
             <div className="p-12 text-center text-red-400">{error}</div>
           )}
 
-          {/* Table */}
           {rows.length > 0 && (
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-gray-950/95 z-10 border-b-2 border-orange-500/30">
                 <tr>
                   {visibleColumns.map(col => (
-                    <th
-                      key={col.key}
-                      className="px-5 py-3.5 text-left text-orange-400 font-semibold uppercase tracking-wider min-w-[140px] whitespace-nowrap"
-                    >
+                    <th key={col.key} className="px-5 py-3.5 text-left text-orange-400 font-semibold uppercase tracking-wider min-w-[140px] whitespace-nowrap">
                       {col.label}
                     </th>
                   ))}
@@ -615,9 +540,7 @@ export default function DatabaseLogs() {
                 {rows.map((row, i) => (
                   <tr key={i} className="hover:bg-orange-500/5 transition">
                     {visibleColumns.map(col => (
-                      <td key={col.key} className="px-5 py-3.5 text-orange-100 whitespace-nowrap">
-                        {row[col.key] ?? "–"}
-                      </td>
+                      <td key={col.key} className="px-5 py-3.5 text-orange-100 whitespace-nowrap">{row[col.key] ?? "–"}</td>
                     ))}
                   </tr>
                 ))}
@@ -625,14 +548,12 @@ export default function DatabaseLogs() {
             </table>
           )}
 
-          {/* Infinite scroll sentinel */}
           {hasMore && (
             <div ref={loadMoreRef} className="p-8 text-center text-orange-300 text-sm">
               {loading ? "Loading more records…" : "Scroll down to load more"}
             </div>
           )}
 
-          {/* End of data */}
           {!hasMore && rows.length > 0 && (
             <div className="p-8 text-center text-orange-400/70 border-t border-orange-500/20 text-sm">
               End of data · {rows.length.toLocaleString()} rows loaded
@@ -644,16 +565,12 @@ export default function DatabaseLogs() {
   );
 }
 
-/* ============================================================
-   ICON MICRO-COMPONENTS
-   ============================================================ */
 function SpinnerIcon({ small = false }) {
   const sz = small ? "h-3 w-3" : "h-5 w-5";
   return (
     <svg className={`animate-spin ${sz}`} viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
     </svg>
   );
 }
@@ -661,8 +578,7 @@ function SpinnerIcon({ small = false }) {
 function DownloadIcon() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
   );
 }
