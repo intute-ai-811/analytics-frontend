@@ -6,9 +6,9 @@ import { useNavigate } from "react-router-dom";
 
 import intuteLogo from "../assets/IntuteAIYellow.png";
 
-// ✅ FIXED: Removed "/api" suffix — axios calls already include "/api/..."
-// When VITE_API_URL="" (production), calls go to /api/auth/login ✓
-// When VITE_API_URL unset (local dev), falls back to http://localhost:5000 ✓
+// VITE_API_URL = bare origin only, no trailing /api
+//   production : VITE_API_URL=""
+//   local dev  : VITE_API_URL=http://localhost:5000
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 export default function LoginModal({ onClose, onAuth }) {
@@ -20,17 +20,9 @@ export default function LoginModal({ onClose, onAuth }) {
 
   const navigate = useNavigate();
 
-  const HARDCODED_EMAIL = "admin@intuteai.in";
-  const HARDCODED_PASSWORD = "password123";
-
   const handleLogin = async () => {
     if (!email || !password) {
       setError("Both email and password are required.");
-      return;
-    }
-
-    if (email !== HARDCODED_EMAIL || password !== HARDCODED_PASSWORD) {
-      setError("Invalid credentials.");
       return;
     }
 
@@ -55,7 +47,6 @@ export default function LoginModal({ onClose, onAuth }) {
         role: user.role,
       };
       localStorage.setItem("user", JSON.stringify(authPayload));
-
       localStorage.setItem("loginPassword", password);
 
       if (typeof onAuth === "function") {
@@ -114,8 +105,27 @@ export default function LoginModal({ onClose, onAuth }) {
     setError("");
   };
 
+  const animationStyles = `
+    @keyframes grid-move {
+      0%   { transform: translate(0, 0); }
+      100% { transform: translate(50px, 50px); }
+    }
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 0.6; }
+    }
+    .animate-spin-slow  { animation: spin-slow  15s linear      infinite; }
+    .animate-pulse-slow { animation: pulse-slow  4s ease-in-out infinite; }
+  `;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black relative overflow-hidden flex items-center justify-center p-6">
+      <style>{animationStyles}</style>
+
       <div className="absolute inset-0 opacity-10">
         <div
           className="absolute inset-0"
@@ -134,23 +144,6 @@ export default function LoginModal({ onClose, onAuth }) {
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full border-2 border-orange-500/20 animate-spin-slow" />
         <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-gradient-to-tr from-orange-500/10 to-red-500/10 animate-pulse-slow" />
       </div>
-
-      <style jsx>{`
-        @keyframes grid-move {
-          0% { transform: translate(0, 0); }
-          100% { transform: translate(50px, 50px); }
-        }
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 0.6; }
-        }
-        .animate-spin-slow { animation: spin-slow 15s linear infinite; }
-        .animate-pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
-      `}</style>
 
       <div className="relative w-full max-w-md">
         <div className="relative bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 rounded-3xl border-2 border-orange-500/30 shadow-2xl overflow-hidden">
