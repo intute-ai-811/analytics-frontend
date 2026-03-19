@@ -17,7 +17,7 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 
 # ✅ Hardcoded empty string — Vite will use this at build time
-ENV VITE_API_URL=""
+ENV VITE_API_URL="/api"
 ENV NODE_ENV=production
 
 RUN npm run build
