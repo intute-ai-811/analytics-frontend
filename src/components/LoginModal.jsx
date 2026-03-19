@@ -4,10 +4,12 @@ import { Eye, EyeOff, Lock, User, LogIn, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-// ✅ FIXED: Correct case-sensitive filename
 import intuteLogo from "../assets/IntuteAIYellow.png";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// ✅ FIXED: Removed "/api" suffix — axios calls already include "/api/..."
+// When VITE_API_URL="" (production), calls go to /api/auth/login ✓
+// When VITE_API_URL unset (local dev), falls back to http://localhost:5000 ✓
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 export default function LoginModal({ onClose, onAuth }) {
   const [email, setEmail] = useState("");
@@ -150,7 +152,7 @@ export default function LoginModal({ onClose, onAuth }) {
         .animate-pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
       `}</style>
 
-      <div className="relative w-full max-w-md ">
+      <div className="relative w-full max-w-md">
         <div className="relative bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 rounded-3xl border-2 border-orange-500/30 shadow-2xl overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-orange-500 via-red-500 to-orange-500" />
 
