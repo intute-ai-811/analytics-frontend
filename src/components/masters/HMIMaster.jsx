@@ -1,0 +1,577 @@
+// import React, { useEffect, useMemo, useState } from "react";
+// import {
+//   Plus,
+//   Download,
+//   Search,
+//   Pencil,
+//   Trash2,
+//   AlertCircle,
+// } from "lucide-react";
+// import axios from "axios";
+
+// /* ================= BACKEND ================= */
+// // VITE_API_URL = bare origin only, no trailing /api
+// //   production : VITE_API_URL=""
+// //   local dev  : VITE_API_URL=http://localhost:5000
+// const API_BASE = `${import.meta.env.VITE_API_URL ?? ""}/api/hmi`;
+
+// const getAuthHeaders = () => {
+//   const user = JSON.parse(localStorage.getItem("user") || "{}");
+//   return user.token ? { Authorization: `Bearer ${user.token}` } : {};
+// };
+
+// export default function HMIMaster() {
+//   const [rows, setRows] = useState([]);
+//   const [query, setQuery] = useState("");
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState("");
+
+//   const [showModal, setShowModal] = useState(false);
+//   const [editing, setEditing] = useState(null);
+
+//   const [form, setForm] = useState({
+//     hmi_make: "",
+//     hmi_model: "",
+//     imei_number: "",
+//     hmi_specs: "",
+//   });
+
+//   /* ===================== FETCH ===================== */
+//   const fetchData = async () => {
+//     setLoading(true);
+//     setError("");
+//     try {
+//       const { data } = await axios.get(API_BASE, {
+//         headers: getAuthHeaders(),
+//       });
+//       setRows(Array.isArray(data) ? data : []);
+//     } catch (e) {
+//       setError(e.response?.data?.error || "Failed to load HMIs");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   useEffect(() => {
+//     fetchData();
+//   }, []);
+
+//   /* ===================== SEARCH ===================== */
+//   const filtered = useMemo(() => {
+//     if (!query.trim()) return rows;
+//     const q = query.toLowerCase();
+//     return rows.filter((r) =>
+//       `${r.hmi_make} ${r.hmi_model} ${r.imei_number}`
+//         .toLowerCase()
+//         .includes(q)
+//     );
+//   }, [rows, query]);
+
+//   /* ===================== MODAL ===================== */
+//   const openNew = () => {
+//     setEditing(null);
+//     setForm({ hmi_make: "", hmi_model: "", imei_number: "", hmi_specs: "" });
+//     setShowModal(true);
+//   };
+
+//   const openEdit = (r) => {
+//     setEditing(r);
+//     setForm({
+//       hmi_make: r.hmi_make || "",
+//       hmi_model: r.hmi_model || "",
+//       imei_number: r.imei_number || "",
+//       hmi_specs: r.hmi_specs || "",
+//     });
+//     setShowModal(true);
+//   };
+
+//   /* ===================== SAVE ===================== */
+//   const saveForm = async () => {
+//     if (!form.hmi_make.trim() || !form.hmi_model.trim()) {
+//       return alert("HMI Make and Model are required");
+//     }
+//     if (!form.imei_number.trim()) {
+//       return alert("IMEI number is required");
+//     }
+
+//     const payload = {
+//       hmi_make: form.hmi_make.trim().toUpperCase(),
+//       hmi_model: form.hmi_model.trim(),
+//       imei_number: form.imei_number.trim(),
+//       hmi_specs: form.hmi_specs?.trim() || null,
+//     };
+
+//     try {
+//       if (!editing) {
+//         const { data } = await axios.post(API_BASE, payload, {
+//           headers: getAuthHeaders(),
+//         });
+//         setRows((prev) => [{ ...payload, hmi_id: data.hmi_id }, ...prev]);
+//       } else {
+//         await axios.put(`${API_BASE}/${editing.hmi_id}`, payload, {
+//           headers: getAuthHeaders(),
+//         });
+//         setRows((prev) =>
+//           prev.map((r) => r.hmi_id === editing.hmi_id ? { ...r, ...payload } : r)
+//         );
+//       }
+//       setShowModal(false);
+//     } catch (e) {
+//       alert(e.response?.data?.error || "Save failed");
+//     }
+//   };
+
+//   /* ===================== DELETE ===================== */
+//   const removeRow = async (id) => {
+//     if (!confirm("Delete this HMI?")) return;
+//     try {
+//       await axios.delete(`${API_BASE}/${id}`, { headers: getAuthHeaders() });
+//       setRows((prev) => prev.filter((r) => r.hmi_id !== id));
+//     } catch (e) {
+//       alert(e.response?.data?.error || "Cannot delete HMI (likely in use)");
+//     }
+//   };
+
+//   /* ===================== CSV EXPORT ===================== */
+//   const exportCSV = () => {
+//     const headers = "HMI Make,HMI Model,IMEI Number,HMI Specs\n";
+//     const csv = rows
+//       .map((r) =>
+//         [r.hmi_make, r.hmi_model, r.imei_number, r.hmi_specs || ""]
+//           .map((v) => `"${v}"`)
+//           .join(",")
+//       )
+//       .join("\n");
+
+//     const blob = new Blob([headers + csv], { type: "text/csv" });
+//     const url = URL.createObjectURL(blob);
+//     const a = document.createElement("a");
+//     a.href = url;
+//     a.download = "hmi_master.csv";
+//     a.click();
+//   };
+
+//   /* ===================== UI ===================== */
+//   return (
+//     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
+//       <div className="max-w-7xl mx-auto px-6 py-10 space-y-8">
+//         <div className="text-center">
+//           <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+//             HMI Master
+//           </h1>
+//           <p className="text-orange-300">Human–Machine Interfaces (IMEI Tracked)</p>
+//         </div>
+
+//         {/* Toolbar */}
+//         <div className="flex gap-4">
+//           <div className="flex-1 relative max-w-md">
+//             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-400" />
+//             <input
+//               value={query}
+//               onChange={(e) => setQuery(e.target.value)}
+//               placeholder="Search by make, model, or IMEI..."
+//               className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-orange-500/30"
+//             />
+//           </div>
+//           <button onClick={exportCSV} className="px-4 py-3 rounded-xl bg-gray-800 border border-orange-500/30 flex gap-2">
+//             <Download className="w-4 h-4" /> Export
+//           </button>
+//           <button onClick={openNew} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold flex gap-2">
+//             <Plus className="w-5 h-5" /> Add HMI
+//           </button>
+//         </div>
+
+//         {loading && <div className="text-center py-8">Loading HMIs…</div>}
+//         {error && (
+//           <div className="p-4 bg-red-900/50 border border-red-500 rounded-xl flex gap-2">
+//             <AlertCircle /> {error}
+//           </div>
+//         )}
+
+//         {/* Table */}
+//         <div className="bg-gray-800/50 rounded-2xl border border-orange-500/30 overflow-hidden">
+//           <table className="w-full">
+//             <thead className="bg-black/50">
+//               <tr>
+//                 {["Make", "Model", "IMEI Number", "Specs", "Actions"].map((h) => (
+//                   <th key={h} className="px-6 py-4 text-left text-orange-200">{h}</th>
+//                 ))}
+//               </tr>
+//             </thead>
+//             <tbody>
+//               {filtered.length === 0 ? (
+//                 <tr>
+//                   <td colSpan={5} className="text-center py-16 text-orange-400">No HMIs found</td>
+//                 </tr>
+//               ) : (
+//                 filtered.map((r) => (
+//                   <tr key={r.hmi_id} className="border-t border-orange-500/10">
+//                     <td className="px-6 py-4 font-bold">{r.hmi_make}</td>
+//                     <td className="px-6 py-4">{r.hmi_model}</td>
+//                     <td className="px-6 py-4 font-mono text-sm">{r.imei_number}</td>
+//                     <td className="px-6 py-4 text-sm">{r.hmi_specs || "-"}</td>
+//                     <td className="px-6 py-4">
+//                       <button onClick={() => openEdit(r)} className="p-2 hover:bg-orange-500/20 rounded">
+//                         <Pencil className="w-4 h-4" />
+//                       </button>
+//                       <button onClick={() => removeRow(r.hmi_id)} className="p-2 hover:bg-red-500/20 rounded ml-2">
+//                         <Trash2 className="w-4 h-4" />
+//                       </button>
+//                     </td>
+//                   </tr>
+//                 ))
+//               )}
+//             </tbody>
+//           </table>
+//         </div>
+
+//         {/* Modal */}
+//         {showModal && (
+//           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+//             <div className="bg-gray-900 p-8 rounded-2xl border-2 border-orange-500 w-full max-w-3xl">
+//               <h2 className="text-2xl font-bold text-orange-300 mb-6">
+//                 {editing ? "Edit" : "Add"} HMI
+//               </h2>
+
+//               <div className="grid grid-cols-2 gap-4">
+//                 <Input
+//                   label="HMI Make *"
+//                   value={form.hmi_make}
+//                   onChange={(v) => setForm({ ...form, hmi_make: v.toUpperCase() })}
+//                   className="uppercase tracking-wide"
+//                 />
+//                 <Input
+//                   label="HMI Model *"
+//                   value={form.hmi_model}
+//                   onChange={(v) => setForm({ ...form, hmi_model: v })}
+//                 />
+//                 <Input
+//                   label="IMEI Number *"
+//                   value={form.imei_number}
+//                   onChange={(v) => setForm({ ...form, imei_number: v })}
+//                 />
+//                 <TextArea
+//                   label="HMI Specs"
+//                   value={form.hmi_specs}
+//                   onChange={(v) => setForm({ ...form, hmi_specs: v })}
+//                 />
+//               </div>
+
+//               <div className="flex justify-end gap-3 mt-6">
+//                 <button onClick={() => setShowModal(false)} className="px-6 py-3 rounded-xl border border-orange-500/30">
+//                   Cancel
+//                 </button>
+//                 <button onClick={saveForm} className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold">
+//                   Save
+//                 </button>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// }
+
+// /* ===================== Reusable Components ===================== */
+// function Input({ label, value, onChange, className = "", ...props }) {
+//   return (
+//     <label className="block">
+//       <span className="text-orange-300 text-sm">{label}</span>
+//       <input
+//         value={value}
+//         onChange={(e) => onChange(e.target.value)}
+//         className={`mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 text-white ${className}`}
+//         {...props}
+//       />
+//     </label>
+//   );
+// }
+
+// function TextArea({ label, value, onChange }) {
+//   return (
+//     <label className="block col-span-2">
+//       <span className="text-orange-300 text-sm">{label}</span>
+//       <textarea
+//         value={value}
+//         onChange={(e) => onChange(e.target.value)}
+//         rows={3}
+//         className="mt-1 w-full px-4 py-2 rounded-lg bg-gray-800 border border-orange-500/30 text-white"
+//       />
+//     </label>
+//   );
+// }
+
+import React, { useEffect, useMemo, useState } from "react";
+import { Plus, Pencil, Trash2, Search, Download, X } from "lucide-react";
+import axios from "axios";
+
+const API_BASE = `${import.meta.env.VITE_API_URL ?? ""}/api/hmi`;
+
+const getAuthHeaders = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  return user.token ? { Authorization: `Bearer ${user.token}` } : {};
+};
+
+export default function HMIMaster() {
+  const [rows, setRows] = useState([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [confirmId, setConfirmId] = useState(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const { data } = await axios.get(API_BASE, { headers: getAuthHeaders() });
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      alert("Load failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return rows;
+    const q = query.toLowerCase();
+    return rows.filter((r) =>
+      `${r.hmi_make} ${r.hmi_model} ${r.imei_number}`.toLowerCase().includes(q)
+    );
+  }, [rows, query]);
+
+  const saveEdit = async () => {
+    if (
+      !editing.hmi_make?.trim() ||
+      !editing.hmi_model?.trim() ||
+      !editing.imei_number?.trim()
+    )
+      return alert("Fill required fields");
+    try {
+      if (!editing.hmi_id) {
+        const { data } = await axios.post(API_BASE, editing, {
+          headers: getAuthHeaders(),
+        });
+        setRows((prev) => [{ ...editing, hmi_id: data.hmi_id }, ...prev]);
+      } else {
+        await axios.put(`${API_BASE}/${editing.hmi_id}`, editing, {
+          headers: getAuthHeaders(),
+        });
+        setRows((prev) =>
+          prev.map((r) =>
+            r.hmi_id === editing.hmi_id ? { ...r, ...editing } : r
+          )
+        );
+      }
+      setEditing(null);
+    } catch (e) {
+      alert("Save failed");
+    }
+  };
+
+  const doDelete = async () => {
+    try {
+      await axios.delete(`${API_BASE}/${confirmId}`, {
+        headers: getAuthHeaders(),
+      });
+      setRows((prev) => prev.filter((r) => r.hmi_id !== confirmId));
+    } catch (e) {
+      alert("Delete failed");
+    } finally {
+      setConfirmId(null);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#0b0b18] via-[#111124] to-[#1a1035] text-white px-6 py-10">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* HEADER */}
+        <div className="text-center">
+          <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 via-fuchsia-400 to-indigo-400 bg-clip-text text-transparent">
+            HMI Master Database
+          </h1>
+        </div>
+
+        {/* CONTROLS */}
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search HMIs..."
+              className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-purple-500/30 focus:border-purple-500 focus:outline-none"
+            />
+          </div>
+          <button
+            onClick={() =>
+              setEditing({
+                hmi_make: "",
+                hmi_model: "",
+                imei_number: "",
+                hmi_specs: "",
+              })
+            }
+            className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 font-bold flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" /> Add HMI
+          </button>
+        </div>
+
+        {/* TABLE */}
+        <div className="rounded-2xl border border-purple-500/30 bg-gray-800/40 backdrop-blur-md overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-black/50 text-purple-200">
+              <tr>
+                {["Make", "Model", "IMEI", "Specs", "Actions"].map((h) => (
+                  <th key={h} className="px-6 py-4 text-center">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-purple-500/10">
+              {filtered.map((r) => (
+                <tr key={r.hmi_id} className="hover:bg-purple-500/5">
+                  <td className="px-6 py-4 text-center font-semibold text-purple-200">
+                    {r.hmi_make}
+                  </td>
+                  <td className="px-6 py-4 text-center text-gray-300">
+                    {r.hmi_model}
+                  </td>
+                  <td className="px-6 py-4 text-center font-mono text-purple-300">
+                    {r.imei_number}
+                  </td>
+                  <td className="px-6 py-4 text-center text-gray-300">
+                    {r.hmi_specs || "-"}
+                  </td>
+                  <td className="px-6 py-4 flex justify-center gap-2">
+                    <button
+                      onClick={() => setEditing(r)}
+                      className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmId(r.hmi_id)}
+                      className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* MODALS */}
+        {editing && (
+          <Modal
+            title={editing.hmi_id ? "Edit HMI" : "Add HMI"}
+            onClose={() => setEditing(null)}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <Input
+                label="Make *"
+                value={editing.hmi_make}
+                onChange={(v) => setEditing({ ...editing, hmi_make: v })}
+              />
+              <Input
+                label="Model *"
+                value={editing.hmi_model}
+                onChange={(v) => setEditing({ ...editing, hmi_model: v })}
+              />
+              <Input
+                label="IMEI *"
+                value={editing.imei_number}
+                onChange={(v) => setEditing({ ...editing, imei_number: v })}
+              />
+              <div className="md:col-span-2">
+                <Input
+                  label="Specs"
+                  value={editing.hmi_specs}
+                  onChange={(v) => setEditing({ ...editing, hmi_specs: v })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setEditing(null)}
+                className="px-5 py-2 border border-purple-500/30 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                className="px-6 py-2 bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-xl font-bold"
+              >
+                Save
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {confirmId && (
+          <Modal title="Delete HMI?" onClose={() => setConfirmId(null)}>
+            <p className="text-purple-200 mb-6">
+              Are you sure you want to delete this HMI? This action cannot be
+              undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmId(null)}
+                className="px-5 py-2 border border-purple-500/30 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={doDelete}
+                className="px-6 py-2 bg-red-600 rounded-xl font-bold"
+              >
+                Delete
+              </button>
+            </div>
+          </Modal>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Modal({ title, children, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+      <div
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-2xl bg-gray-900 rounded-2xl border border-purple-500/40 p-5 z-10">
+        <div className="flex justify-between mb-3">
+          <h2 className="text-2xl font-bold text-purple-300">{title}</h2>
+          <button onClick={onClose}>
+            <X />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Input({ label, value, onChange }) {
+  return (
+    <label className="block">
+      <span className="text-sm text-purple-300">{label}</span>
+      <input
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 w-full px-4 py-3 rounded-xl bg-black/40 border border-purple-500/30 focus:border-purple-500 focus:outline-none"
+      />
+    </label>
+  );
+}
