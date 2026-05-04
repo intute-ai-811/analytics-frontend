@@ -9,6 +9,17 @@ import {
   Navigate,
 } from "react-router-dom";
 import axios from "axios";
+import { installDemoInterceptor, uninstallDemoInterceptor } from "./demo/interceptor";
+import { DEMO_EMAIL } from "./demo/demoData";
+
+// Install demo interceptors synchronously at module load so that any
+// fetch/axios call fired by the first render is already mocked.
+{
+  const _u = (() => {
+    try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
+  })();
+  if (_u?.email === DEMO_EMAIL) installDemoInterceptor();
+}
 
 // Layout & Auth
 import LoginModal from "./components/LoginModal";
@@ -63,6 +74,7 @@ function App() {
     } else {
       setShowLogin(true);
       delete axios.defaults.headers.common["Authorization"];
+      uninstallDemoInterceptor();
       if (location.pathname !== "/") {
         navigate("/", { replace: true });
       }

@@ -272,6 +272,7 @@
 // }
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { isDemoMode, DEMO_LOCATION, DEMO_TOKEN } from "../demo/demoData";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.marker.slideto";
@@ -375,6 +376,54 @@ export default function VehicleLiveTrack() {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const token = user?.token;
     if (!token) return;
+
+    // Demo mode: simulate location SSE with drifting GPS instead of a real EventSource
+    if (isDemoMode() || token === DEMO_TOKEN) {
+      const base = DEMO_LOCATION[id] ?? { lat: 18.5204, lon: 73.8567 };
+      let tick = 0;
+
+      const placeMarker = (lat, lon, heading) => {
+        const latLng = [lat, lon];
+        setLastUpdate(new Date());
+        setPoints((prev) => {
+          const next = [...prev.slice(-MAX_POINTS + 1), latLng];
+          pathRef.current?.setLatLngs(next);
+          return next;
+        });
+        const arrowIcon = L.divIcon({
+          className: "vehicle-arrow-container",
+          html: `<div style="transform: rotate(${heading}deg); font-size: 32px; color: ${C.purple}; filter: drop-shadow(0 0 8px ${C.purple}); transition: color 0.5s;">➤</div>`,
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        });
+        if (!markerRef.current) {
+          markerRef.current = L.marker(latLng, { icon: arrowIcon }).addTo(mapRef.current);
+          mapRef.current.setView(latLng, 16);
+        } else {
+          markerRef.current.setIcon(arrowIcon);
+          markerRef.current.slideTo(latLng, { duration: 1000 });
+          if (follow) mapRef.current.panTo(latLng);
+        }
+        if (accuracyRef.current) accuracyRef.current.remove();
+        accuracyRef.current = L.circle(latLng, {
+          radius: 8,
+          color: "#22c55e",
+          fillColor: "#22c55e",
+          fillOpacity: 0.1,
+          weight: 1,
+        }).addTo(mapRef.current);
+        setSseError(null);
+      };
+
+      placeMarker(base.lat, base.lon, 45);
+      const intervalId = setInterval(() => {
+        tick++;
+        const lat = base.lat + Math.sin(tick * 0.15) * 0.0003;
+        const lon = base.lon + Math.cos(tick * 0.15) * 0.0003;
+        placeMarker(lat, lon, (45 + tick * 8) % 360);
+      }, 4000);
+      return () => clearInterval(intervalId);
+    }
 
     const url = `${API_BASE_URL}/api/vehicles/${id}/location/stream?token=${token}`;
     const es = new EventSource(url);

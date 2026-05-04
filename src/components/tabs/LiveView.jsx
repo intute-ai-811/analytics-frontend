@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { isDemoMode, makeLiveSnapshot, DEMO_TOKEN } from "../../demo/demoData";
 
 // VITE_API_URL = bare origin only, no trailing /api
 //   production : VITE_API_URL=""
@@ -75,6 +76,18 @@ export default function LiveView() {
     };
 
     fetchSnapshot();
+
+    // Demo mode: simulate SSE with an interval instead of opening a real EventSource
+    if (isDemoMode() || token === DEMO_TOKEN) {
+      let tick = 1;
+      const intervalId = setInterval(() => {
+        const data = makeLiveSnapshot(id, tick++);
+        setLive(data);
+        if (data.recorded_at) setLastUpdateTime(new Date(data.recorded_at));
+        setError(null);
+      }, 3000);
+      return () => clearInterval(intervalId);
+    }
 
     if (eventSourceRef.current) eventSourceRef.current.close();
 

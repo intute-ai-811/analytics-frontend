@@ -323,6 +323,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import { isDemoMode, makeLiveSnapshot, DEMO_TOKEN } from "../../demo/demoData";
 import {
   AreaChart,
   Area,
@@ -699,6 +700,17 @@ export default function LiveCharts() {
       .catch(console.warn)
       .finally(() => setLoading(false));
 
+    // Demo mode: simulate SSE with an interval instead of a real EventSource
+    if (isDemoMode() || token === DEMO_TOKEN) {
+      let tick = 30;
+      const intervalId = setInterval(() => {
+        const d = makeLiveSnapshot(id, tick++);
+        addPoint(d);
+        if (d.recorded_at) setLastUpdateTime(new Date(d.recorded_at));
+      }, 2000);
+      return () => clearInterval(intervalId);
+    }
+
     const es = new EventSource(
       `${API_BASE_URL}/api/vehicles/${id}/stream?token=${token}`
     );
@@ -706,7 +718,7 @@ export default function LiveCharts() {
       const d = JSON.parse(e.data);
       addPoint(d);
       if (d.recorded_at) setLastUpdateTime(new Date(d.recorded_at));
-    }; 
+    };
     return () => es.close();
   }, [id, addPoint]);
 

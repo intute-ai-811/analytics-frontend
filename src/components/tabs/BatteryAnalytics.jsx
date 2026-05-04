@@ -1,368 +1,10 @@
-// import React, { useEffect, useMemo, useState } from "react";
-// import { useParams } from "react-router-dom";
-
-// // VITE_API_URL = bare origin only, no trailing /api
-// //   production : VITE_API_URL=""
-// //   local dev  : VITE_API_URL=http://localhost:5000
-// const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
-
-// /* ========================= BATTERY ANALYTICS ========================= */
-// export default function BatteryAnalytics() {
-//   const { id } = useParams();
-
-//   const [data, setData] = useState([]);
-//   const [selectedDate, setSelectedDate] = useState("");
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState(null);
-
-//   /* ===== FETCH DATA ===== */
-//   useEffect(() => {
-//     const fetchData = async () => {
-//       try {
-//         setLoading(true);
-//         const token = localStorage.getItem("token");
-//         if (!token) throw new Error("Not authenticated");
-
-//         const url = selectedDate
-//           ? `${API_BASE_URL}/api/battery/analytics/${id}?date=${selectedDate}`
-//           : `${API_BASE_URL}/api/battery/analytics/${id}?days=30`;
-
-//         const res = await fetch(url, {
-//           headers: { Authorization: `Bearer ${token}` },
-//         });
-
-//         if (!res.ok) throw new Error("Failed to load battery analytics");
-
-//         const rows = await res.json();
-//         setData(rows || []);
-//       } catch (err) {
-//         setError(err.message);
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     if (id) fetchData();
-//   }, [id, selectedDate]);
-
-//   /* ===== ODO SUMMARY (ONLY FOR 30 DAYS VIEW) ===== */
-//   const odo = useMemo(() => {
-//     if (!data.length || selectedDate)
-//       return { energyUsed: null, maxCurrent: 0, maxTemp: 0, avgTemp: null };
-
-//     const energyUsed = data
-//       .map(d => Number(d.total_kwh_consumed || 0))
-//       .reduce((a, b) => a + b, 0);
-
-//     const validAvgTemps = data
-//       .map(d => Number(d.avg_cell_temp_c ?? 0))
-//       .filter(v => v > 0);
-//     const avgTemp = validAvgTemps.length
-//       ? validAvgTemps.reduce((a, b) => a + b, 0) / validAvgTemps.length
-//       : null;
-
-//     return {
-//       energyUsed: energyUsed || null,
-//       maxCurrent: Math.max(...data.map(d => Number(d.max_op_dc_current_a ?? 0))),
-//       maxTemp: Math.max(...data.map(d => Number(d.max_cell_temp_c ?? 0))),
-//       avgTemp,
-//     };
-//   }, [data, selectedDate]);
-
-//   /* ===== LATEST / SELECTED DAY ===== */
-//   const latestTrip = useMemo(() => {
-//     if (!data.length) return {};
-//     return data[0];
-//   }, [data]);
-
-//   /* ===== CHART DATA (ASC ORDER) ===== */
-//   const chartData = useMemo(() => [...data].reverse(), [data]);
-
-//   const handleClearDate = () => setSelectedDate("");
-
-//   if (loading)
-//     return (
-//       <div className="text-center py-16 text-orange-300">
-//         Loading battery analytics…
-//       </div>
-//     );
-
-//   if (error)
-//     return (
-//       <div className="text-center py-16 text-red-400">
-//         Error: {error}
-//       </div>
-//     );
-
-//   return (
-//     <div className="space-y-8 pb-8">
-//       {/* ===== CENTERED TITLE ===== */}
-//       <h2 className="text-2xl font-bold text-center bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent mb-3">
-//         Battery Analytics
-//       </h2>
-
-//       {/* ===== DATE FILTER ===== */}
-//       <div className="flex justify-center items-center gap-4 flex-wrap">
-//         <label className="text-orange-300 text-sm font-medium">View by Date:</label>
-//         <input
-//           type="date"
-//           value={selectedDate}
-//           onChange={e => setSelectedDate(e.target.value)}
-//           className="bg-gray-900/80 border border-orange-500/40 text-orange-200 rounded-lg px-4 py-2 focus:border-orange-500 focus:outline-none transition"
-//         />
-//         {selectedDate && (
-//           <button
-//             onClick={handleClearDate}
-//             className="text-orange-400 hover:text-orange-300 underline text-sm transition"
-//           >
-//             Show last 30 days
-//           </button>
-//         )}
-//       </div>
-
-//       {/* ===== SUMMARY ===== */}
-//       {!selectedDate && data.length > 0 && (
-//         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-//           <Section title="ODO Summary (Last 30 Days)">
-//             <Stat label="Energy Used" value={odo.energyUsed} unit="kWh" />
-//             <Stat label="Max DC Current" value={odo.maxCurrent} unit="A" />
-//             <Stat label="Max Cell Temperature" value={odo.maxTemp} unit="°C" warn={45} danger={55} />
-//             <Stat label="Avg Cell Temperature" value={odo.avgTemp} unit="°C" warn={42} danger={52} />
-//           </Section>
-
-//           <Section title="Latest Day">
-//             <Stat label="Energy Used" value={latestTrip.total_kwh_consumed} unit="kWh" />
-//             <Stat label="Max DC Current" value={latestTrip.max_op_dc_current_a} unit="A" />
-//             <Stat label="Max Cell Temperature" value={latestTrip.max_cell_temp_c} unit="°C" warn={45} danger={55} />
-//             <Stat label="Avg Cell Temperature" value={latestTrip.avg_cell_temp_c} unit="°C" warn={42} danger={52} />
-//           </Section>
-//         </div>
-//       )}
-
-//       {/* ===== NO DATA ===== */}
-//       {data.length === 0 && (
-//         <div className="text-center py-12 text-orange-300/70">
-//           No battery analytics data available for the selected period.
-//         </div>
-//       )}
-
-//       {/* ===== CHARTS ===== */}
-//       {data.length > 0 && (
-//         <>
-//           {!selectedDate ? (
-//             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-//               <ChartCard title="Energy Consumption Trend (kWh)">
-//                 <LineChart
-//                   data={chartData.map(d => ({ x: d.day, y: Number(d.total_kwh_consumed ?? 0) }))}
-//                 />
-//               </ChartCard>
-
-//               <ChartCard title="Max Cell Temperature Trend (°C)">
-//                 <LineChart
-//                   data={chartData.map(d => ({ x: d.day, y: Number(d.max_cell_temp_c ?? 0) }))}
-//                   band={{ warn: 45, danger: 55 }}
-//                 />
-//               </ChartCard>
-
-//               <ChartCard title="Avg Cell Temperature Trend (°C)">
-//                 <LineChart
-//                   data={chartData.map(d => ({ x: d.day, y: Number(d.avg_cell_temp_c ?? 0) }))}
-//                   band={{ warn: 42, danger: 52 }}
-//                 />
-//               </ChartCard>
-
-//               <ChartCard title="Max DC Current Trend (A)">
-//                 <LineChart
-//                   data={chartData.map(d => ({ x: d.day, y: Number(d.max_op_dc_current_a ?? 0) }))}
-//                 />
-//               </ChartCard>
-//             </div>
-//           ) : (
-//             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-//               <Section title={`Data on ${selectedDate}`}>
-//                 <Stat label="Energy Used" value={latestTrip.total_kwh_consumed} unit="kWh" />
-//                 <Stat label="Max DC Current" value={latestTrip.max_op_dc_current_a} unit="A" />
-//                 <Stat label="Max Cell Temperature" value={latestTrip.max_cell_temp_c} unit="°C" warn={45} danger={55} />
-//                 <Stat label="Avg Cell Temperature" value={latestTrip.avg_cell_temp_c} unit="°C" warn={42} danger={52} />
-//               </Section>
-
-//               <ChartCard title={`Battery Metrics on ${selectedDate}`}>
-//                 <BarChart
-//                   data={[
-//                     { x: "Energy",     y: Number(latestTrip.total_kwh_consumed ?? 0) },
-//                     { x: "DC Current", y: Number(latestTrip.max_op_dc_current_a ?? 0) },
-//                     { x: "Max Temp",   y: Number(latestTrip.max_cell_temp_c ?? 0) },
-//                     { x: "Avg Temp",   y: Number(latestTrip.avg_cell_temp_c ?? 0) },
-//                   ]}
-//                   band={{ warn: 45, danger: 55 }}
-//                 />
-//               </ChartCard>
-//             </div>
-//           )}
-//         </>
-//       )}
-//     </div>
-//   );
-// }
-
-// /* ========================= UI HELPERS ========================= */
-
-// function Section({ title, children }) {
-//   return (
-//     <div className="border border-orange-500/30 p-6 rounded-xl bg-gradient-to-br from-gray-900/90 to-black/80 backdrop-blur-sm shadow-lg">
-//       <h3 className="font-bold text-orange-400 mb-5 text-lg border-b border-orange-500/20 pb-3">{title}</h3>
-//       <div className="space-y-3">{children}</div>
-//     </div>
-//   );
-// }
-
-// function Stat({ label, value, unit, warn, danger }) {
-//   if (value == null || isNaN(value))
-//     return (
-//       <div className="flex justify-between items-center bg-gray-800/50 px-5 py-4 rounded-lg border border-orange-500/20 hover:border-orange-500/40 transition-all">
-//         <span className="text-gray-300 font-medium">{label}</span>
-//         <span className="text-gray-400">–</span>
-//       </div>
-//     );
-
-//   const v = Number(value).toFixed(2);
-//   let color = "text-emerald-400";
-//   let bgColor = "bg-emerald-500/10";
-
-//   if (warn && danger) {
-//     const n = Number(v);
-//     if (n >= danger) { color = "text-red-400"; bgColor = "bg-red-500/10"; }
-//     else if (n >= warn) { color = "text-yellow-400"; bgColor = "bg-yellow-500/10"; }
-//   }
-
-//   return (
-//     <div className="flex justify-between items-center bg-gray-800/50 px-5 py-4 rounded-lg border border-orange-500/20 hover:border-orange-500/40 transition-all">
-//       <span className="text-gray-300 font-medium">{label}</span>
-//       <div className={`${bgColor} px-3 py-1 rounded-md`}>
-//         <span className={`font-bold text-lg ${color}`}>
-//           {v} <span className="text-sm opacity-70 font-normal">{unit}</span>
-//         </span>
-//       </div>
-//     </div>
-//   );
-// }
-
-// function ChartCard({ title, children }) {
-//   return (
-//     <div className="border border-orange-500/30 rounded-xl p-5 bg-gradient-to-br from-gray-900/90 to-black/80 backdrop-blur-sm shadow-lg">
-//       <h3 className="text-orange-400 font-bold mb-4 text-center text-base">{title}</h3>
-//       <div className="flex justify-center bg-black/30 rounded-lg p-4">{children}</div>
-//     </div>
-//   );
-// }
-
-// /* ========================= CHARTS ========================= */
-
-// function LineChart({ data, band }) {
-//   if (!data || data.length === 0)
-//     return <div className="h-48 flex items-center justify-center text-gray-500">No data</div>;
-
-//   const width = 600, height = 220, pad = 40;
-//   const values = data.map(d => d.y);
-//   const maxY = Math.max(...values, band?.danger || 100, 10);
-//   const minY = Math.min(...values, 0);
-
-//   const points = data.map((d, i) => {
-//     const x = pad + (i / (data.length - 1)) * (width - pad * 2);
-//     const y = height - pad - ((d.y - minY) / (maxY - minY)) * (height - pad * 2);
-//     return `${x},${y}`;
-//   }).join(" ");
-
-//   const areaPoints = `${pad},${height - pad} ${points} ${width - pad},${height - pad}`;
-
-//   return (
-//     <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
-//       <defs>
-//         <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-//           <stop offset="0%" stopColor="rgb(251,146,60)" stopOpacity="0.3" />
-//           <stop offset="100%" stopColor="rgb(251,146,60)" stopOpacity="0.05" />
-//         </linearGradient>
-//       </defs>
-//       {[0, 0.25, 0.5, 0.75, 1].map(ratio => {
-//         const y = height - pad - ratio * (height - pad * 2);
-//         return (
-//           <g key={ratio}>
-//             <line x1={pad} y1={y} x2={width - pad} y2={y} stroke="rgba(251,146,60,0.15)" strokeWidth="1" strokeDasharray="4,4" />
-//             <text x={pad - 8} y={y + 4} textAnchor="end" fontSize="10" fill="rgb(156,163,175)">
-//               {(minY + ratio * (maxY - minY)).toFixed(1)}
-//             </text>
-//           </g>
-//         );
-//       })}
-//       <polygon fill="url(#lineGradient)" points={areaPoints} />
-//       <polyline fill="none" stroke="rgb(251,146,60)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={points} />
-//       {data.map((d, i) => {
-//         const x = pad + (i / (data.length - 1)) * (width - pad * 2);
-//         const y = height - pad - ((d.y - minY) / (maxY - minY)) * (height - pad * 2);
-//         let fill = "rgb(251,146,60)";
-//         if (band) {
-//           if (d.y >= band.danger) fill = "rgb(239,68,68)";
-//           else if (d.y >= band.warn) fill = "rgb(234,179,8)";
-//         }
-//         return (
-//           <g key={i}>
-//             <circle cx={x} cy={y} r="5" fill="rgba(0,0,0,0.6)" />
-//             <circle cx={x} cy={y} r="4" fill={fill} />
-//             <title>{`${d.x}: ${d.y.toFixed(2)}`}</title>
-//           </g>
-//         );
-//       })}
-//     </svg>
-//   );
-// }
-
-// function BarChart({ data, band }) {
-//   if (!data || data.length === 0)
-//     return <div className="h-48 flex items-center justify-center text-gray-500">No data</div>;
-
-//   const width = 560, height = 220, pad = 50;
-//   const maxY = Math.max(...data.map(d => d.y), band?.danger || 100, 10);
-//   const barWidth = (width - pad * 2) / data.length - 30;
-
-//   return (
-//     <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
-//       <defs>
-//         {data.map((d, i) => {
-//           let c1 = "rgb(251,146,60)", c2 = "rgb(251,191,36)";
-//           if (band && (d.x.includes("Temp") || d.x === "Max Temp" || d.x === "Avg Temp")) {
-//             if (d.y >= band.danger) { c1 = "rgb(239,68,68)"; c2 = "rgb(220,38,38)"; }
-//             else if (d.y >= band.warn) { c1 = "rgb(234,179,8)"; c2 = "rgb(202,138,4)"; }
-//           }
-//           return (
-//             <linearGradient key={i} id={`barGradient${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
-//               <stop offset="0%" stopColor={c1} />
-//               <stop offset="100%" stopColor={c2} />
-//             </linearGradient>
-//           );
-//         })}
-//       </defs>
-//       {[0.25, 0.5, 0.75].map(ratio => (
-//         <line key={ratio} x1={pad} y1={height - pad - ratio * (height - pad * 2)} x2={width - pad} y2={height - pad - ratio * (height - pad * 2)} stroke="rgba(251,146,60,0.1)" strokeDasharray="4,4" />
-//       ))}
-//       {data.map((d, i) => {
-//         const barHeight = (d.y / maxY) * (height - pad * 2);
-//         const y = height - pad - barHeight;
-//         const x = pad + i * (barWidth + 30) + 15;
-//         return (
-//           <g key={i}>
-//             <rect x={x + 2} y={y + 2} width={barWidth} height={barHeight} rx="8" fill="rgba(0,0,0,0.3)" />
-//             <rect x={x} y={y} width={barWidth} height={barHeight} rx="8" fill={`url(#barGradient${i})`} />
-//             <text x={x + barWidth / 2} y={height - 10} textAnchor="middle" fontSize="13" fill="rgb(209,213,219)" fontWeight="600">{d.x}</text>
-//             <text x={x + barWidth / 2} y={y - 10} textAnchor="middle" fontSize="15" fill="rgb(251,146,60)" fontWeight="bold">{d.y.toFixed(1)}</text>
-//           </g>
-//         );
-//       })}
-//     </svg>
-//   );
-// }
-
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine, Cell,
+} from "recharts";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -370,12 +12,11 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 export default function BatteryAnalytics() {
   const { id } = useParams();
 
-  const [data, setData] = useState([]);
+  const [data,         setData]         = useState([]);
   const [selectedDate, setSelectedDate] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
 
-  /* ===== FETCH DATA ===== */
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -387,25 +28,19 @@ export default function BatteryAnalytics() {
           ? `${API_BASE_URL}/api/battery/analytics/${id}?date=${selectedDate}`
           : `${API_BASE_URL}/api/battery/analytics/${id}?days=30`;
 
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error("Failed to load battery analytics");
 
-        const rows = await res.json();
-        setData(rows || []);
+        setData((await res.json()) || []);
       } catch (err) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-
     if (id) fetchData();
   }, [id, selectedDate]);
 
-  /* ===== ODO SUMMARY (ONLY FOR 30 DAYS VIEW) ===== */
   const odo = useMemo(() => {
     if (!data.length || selectedDate)
       return { energyUsed: null, maxCurrent: 0, maxTemp: 0, avgTemp: null };
@@ -424,27 +59,22 @@ export default function BatteryAnalytics() {
     return {
       energyUsed: energyUsed || null,
       maxCurrent: Math.max(...data.map(d => Number(d.max_op_dc_current_a ?? 0))),
-      maxTemp: Math.max(...data.map(d => Number(d.max_cell_temp_c ?? 0))),
+      maxTemp:    Math.max(...data.map(d => Number(d.max_cell_temp_c ?? 0))),
       avgTemp,
     };
   }, [data, selectedDate]);
 
-  /* ===== LATEST / SELECTED DAY ===== */
-  const latestTrip = useMemo(() => {
-    if (!data.length) return {};
-    return data[0];
-  }, [data]);
-
-  /* ===== CHART DATA (ASC ORDER) ===== */
-  const chartData = useMemo(() => [...data].reverse(), [data]);
-
-  const handleClearDate = () => setSelectedDate("");
+  const latestTrip = useMemo(() => data.length ? data[0] : {}, [data]);
+  const chartData  = useMemo(() => [...data].reverse(), [data]);
 
   if (loading)
-    return <div className="text-center py-16 text-purple-400 font-mono">INITIALIZING TELEMETRY STREAM...</div>;
-
+    return <div className="text-center py-16 text-purple-400 font-mono">Loading battery analytics…</div>;
   if (error)
-    return <div className="text-center py-16 text-pink-500 font-mono">CRITICAL ERROR: {error}</div>;
+    return <div className="text-center py-16 text-pink-500 font-mono">Error: {error}</div>;
+
+  const energyColor  = "#34d399";
+  const currentColor = "#f97316";
+  const voltColor    = "#38bdf8";
 
   return (
     <div className="space-y-8 pb-8 text-purple-100">
@@ -452,6 +82,7 @@ export default function BatteryAnalytics() {
         Battery Analytics
       </h2>
 
+      {/* Date filter */}
       <div className="flex justify-center items-center gap-4 flex-wrap">
         <label className="text-purple-300/70 text-xs font-bold uppercase tracking-widest">Date Query:</label>
         <input
@@ -461,54 +92,78 @@ export default function BatteryAnalytics() {
           className="bg-black border border-purple-500/30 text-purple-100 rounded px-4 py-2 focus:border-pink-500 outline-none transition"
         />
         {selectedDate && (
-          <button onClick={handleClearDate} className="text-pink-400 hover:text-pink-300 underline text-xs uppercase tracking-widest transition">
-            Reset to 30-Day View
+          <button
+            onClick={() => setSelectedDate("")}
+            className="text-pink-400 hover:text-pink-300 underline text-xs uppercase tracking-widest transition"
+          >
+            ← Back to 30-day view
           </button>
         )}
       </div>
 
-      {!selectedDate && data.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Section title="ODO Summary (Last 30 Days)">
-            <Stat label="Energy Used" value={odo.energyUsed} unit="kWh" />
-            <Stat label="Max DC Current" value={odo.maxCurrent} unit="A" />
-            <Stat label="Max Cell Temp" value={odo.maxTemp} unit="°C" warn={45} danger={55} />
-            <Stat label="Avg Cell Temp" value={odo.avgTemp} unit="°C" warn={42} danger={52} />
-          </Section>
-
-          <Section title="Latest Session">
-            <Stat label="Energy Used" value={latestTrip.total_kwh_consumed} unit="kWh" />
-            <Stat label="Max DC Current" value={latestTrip.max_op_dc_current_a} unit="A" />
-            <Stat label="Max Cell Temp" value={latestTrip.max_cell_temp_c} unit="°C" warn={45} danger={55} />
-            <Stat label="Avg Cell Temp" value={latestTrip.avg_cell_temp_c} unit="°C" warn={42} danger={52} />
-          </Section>
+      {data.length === 0 && (
+        <div className="text-center py-12 text-purple-500/50 uppercase tracking-widest text-sm">
+          No data for selected period.
         </div>
       )}
 
-      {data.length === 0 && <div className="text-center py-12 text-purple-500/50 uppercase tracking-widest text-sm">No data for selected period.</div>}
+      {/* ── 30-day view ── */}
+      {!selectedDate && data.length > 0 && (
+        <>
+          {/* ODO Summary + Latest Session */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Section title="ODO Summary — Last 30 Days">
+              <Stat label="Total Energy"   value={odo.energyUsed}  unit="kWh" />
+              <Stat label="Peak DC Current" value={odo.maxCurrent}  unit="A" />
+              <Stat label="Peak Cell Temp"  value={odo.maxTemp}     unit="°C" warn={45} danger={55} />
+              <Stat label="Avg Cell Temp"   value={odo.avgTemp}     unit="°C" warn={42} danger={52} />
+            </Section>
 
-      {data.length > 0 && (
+            <Section title="Latest Session">
+              <Stat label="Energy Used"    value={latestTrip.total_kwh_consumed}  unit="kWh" />
+              <Stat label="Max DC Current" value={latestTrip.max_op_dc_current_a} unit="A" />
+              <Stat label="Max Cell Temp"  value={latestTrip.max_cell_temp_c}     unit="°C" warn={45} danger={55} />
+              <Stat label="Avg Cell Temp"  value={latestTrip.avg_cell_temp_c}     unit="°C" warn={42} danger={52} />
+            </Section>
+          </div>
+
+          {/* Trend charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard title="Energy Consumption" unit="kWh" color={energyColor}>
+              <TrendAreaChart data={chartData} dataKey="total_kwh_consumed"  unit="kWh" color={energyColor}  gradId="batt_energy" />
+            </ChartCard>
+            <ChartCard title="Peak DC Current" unit="A" color={currentColor}>
+              <TrendAreaChart data={chartData} dataKey="max_op_dc_current_a" unit="A"   color={currentColor} gradId="batt_current" />
+            </ChartCard>
+            <ChartCard title="Cell Temperature" unit="°C" color="#fbbf24" warnVal={45} dangerVal={55}>
+              <TrendAreaChart data={chartData} dataKey="max_cell_temp_c" unit="°C" color="#fbbf24" gradId="batt_temp" warnVal={45} dangerVal={55} />
+            </ChartCard>
+            <ChartCard title="Cell Voltage Range" unit="V" color={voltColor}>
+              <VoltageRangeChart data={chartData} color={voltColor} />
+            </ChartCard>
+          </div>
+        </>
+      )}
+
+      {/* ── Single-day view ── */}
+      {selectedDate && data.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {!selectedDate ? (
-            <>
-              <ChartCard title="Energy Consumption (kWh)"><LineChart data={chartData.map(d => ({ x: d.day, y: Number(d.total_kwh_consumed ?? 0) }))} /></ChartCard>
-              <ChartCard title="Max Cell Temp (°C)"><LineChart data={chartData.map(d => ({ x: d.day, y: Number(d.max_cell_temp_c ?? 0) }))} band={{ warn: 45, danger: 55 }} /></ChartCard>
-              <ChartCard title="Avg Cell Temp (°C)"><LineChart data={chartData.map(d => ({ x: d.day, y: Number(d.avg_cell_temp_c ?? 0) }))} band={{ warn: 42, danger: 52 }} /></ChartCard>
-              <ChartCard title="Max DC Current (A)"><LineChart data={chartData.map(d => ({ x: d.day, y: Number(d.max_op_dc_current_a ?? 0) }))} /></ChartCard>
-            </>
-          ) : (
-            <>
-              <Section title={`Data: ${selectedDate}`}>
-                <Stat label="Energy Used" value={latestTrip.total_kwh_consumed} unit="kWh" />
-                <Stat label="Max DC Current" value={latestTrip.max_op_dc_current_a} unit="A" />
-                <Stat label="Max Cell Temp" value={latestTrip.max_cell_temp_c} unit="°C" warn={45} danger={55} />
-                <Stat label="Avg Cell Temp" value={latestTrip.avg_cell_temp_c} unit="°C" warn={42} danger={52} />
-              </Section>
-              <ChartCard title={`Session Metrics: ${selectedDate}`}>
-                <BarChart data={[{ x: "Energy", y: Number(latestTrip.total_kwh_consumed ?? 0) }, { x: "DC Current", y: Number(latestTrip.max_op_dc_current_a ?? 0) }, { x: "Max Temp", y: Number(latestTrip.max_cell_temp_c ?? 0) }, { x: "Avg Temp", y: Number(latestTrip.avg_cell_temp_c ?? 0) }]} band={{ warn: 45, danger: 55 }} />
-              </ChartCard>
-            </>
-          )}
+          <Section title={`Session: ${selectedDate}`}>
+            <Stat label="Energy Used"      value={latestTrip.total_kwh_consumed}  unit="kWh" />
+            <Stat label="Max DC Current"   value={latestTrip.max_op_dc_current_a} unit="A" />
+            <Stat label="Max Cell Temp"    value={latestTrip.max_cell_temp_c}     unit="°C" warn={45} danger={55} />
+            <Stat label="Avg Cell Temp"    value={latestTrip.avg_cell_temp_c}     unit="°C" warn={42} danger={52} />
+            <Stat label="Min Cell Voltage" value={latestTrip.min_cell_voltage_v}  unit="V" />
+            <Stat label="Max Cell Voltage" value={latestTrip.max_cell_voltage_v}  unit="V" />
+          </Section>
+          <ChartCard title="Session Metrics" unit={selectedDate} color="#a78bfa">
+            <DayBarChart items={[
+              { name: "Energy",   value: Number(latestTrip.total_kwh_consumed  ?? 0), unit: "kWh" },
+              { name: "DC Curr",  value: Number(latestTrip.max_op_dc_current_a ?? 0), unit: "A"   },
+              { name: "Max Temp", value: Number(latestTrip.max_cell_temp_c     ?? 0), unit: "°C"  },
+              { name: "Avg Temp", value: Number(latestTrip.avg_cell_temp_c     ?? 0), unit: "°C"  },
+            ]} />
+          </ChartCard>
         </div>
       )}
     </div>
@@ -516,93 +171,211 @@ export default function BatteryAnalytics() {
 }
 
 /* ========================= UI HELPERS ========================= */
+
+const fmtDay = (d) => (d ? d.slice(5).replace("-", "/") : "");
+const fmtNum = (v, dec = 1) => (v == null || isNaN(v) ? "–" : Number(v).toFixed(dec));
+
 function Section({ title, children }) {
   return (
-    <div className="border border-purple-500/20 p-6 rounded-lg bg-black/40 backdrop-blur-md shadow-2xl">
-      <h3 className="font-black text-pink-400 mb-5 text-sm uppercase tracking-widest border-b border-purple-500/20 pb-3">{title}</h3>
+    <div
+      className="rounded-2xl p-6 shadow-2xl"
+      style={{
+        background: "linear-gradient(150deg,rgba(13,13,22,0.95),rgba(20,18,35,0.95))",
+        border: "1px solid rgba(139,92,246,0.2)",
+      }}
+    >
+      <h3 className="text-sm font-bold text-purple-300 uppercase tracking-widest mb-5 border-b border-purple-500/20 pb-3">
+        {title}
+      </h3>
       <div className="space-y-3">{children}</div>
     </div>
   );
 }
 
 function Stat({ label, value, unit, warn, danger }) {
-  if (value == null || isNaN(value))
+  const n = Number(value ?? 0);
+  let color = "#34d399";
+  if (warn && danger) {
+    if (n >= danger)    color = "#ef4444";
+    else if (n >= warn) color = "#f59e0b";
+  }
+  return (
+    <div className="flex justify-between items-center bg-white/[0.03] px-4 py-3 rounded-xl border border-white/[0.05]">
+      <span className="text-gray-400 text-sm">{label}</span>
+      <span className="font-bold tabular-nums" style={{ color }}>
+        {fmtNum(n, 2)}
+        <span className="text-xs text-gray-500 ml-1 font-normal">{unit}</span>
+      </span>
+    </div>
+  );
+}
+
+function ChartCard({ title, unit, color, warnVal, dangerVal, children }) {
+  return (
+    <div
+      className="rounded-2xl p-5 shadow-2xl"
+      style={{
+        background: "linear-gradient(150deg,rgba(13,13,22,0.95),rgba(20,18,35,0.95))",
+        border: "1px solid rgba(139,92,246,0.18)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: color || "#a78bfa" }}>
+          {title}
+        </h3>
+        <span className="text-xs text-gray-600 font-mono">{unit}</span>
+      </div>
+      {warnVal && (
+        <div className="flex gap-3 mb-3 text-[10px]">
+          <span className="text-amber-400">▲ Warn {warnVal}</span>
+          <span className="text-red-400">▲ Crit {dangerVal}</span>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+/* ========================= CHARTS ========================= */
+
+function TrendAreaChart({ data, dataKey, unit, color, gradId, warnVal, dangerVal }) {
+  if (!data?.length)
+    return <div className="h-52 flex items-center justify-center text-gray-600 text-sm">No data</div>;
+
+  const values = data.map(d => Number(d[dataKey] ?? 0)).filter(v => Number.isFinite(v));
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const avgV = values.reduce((a, b) => a + b, 0) / values.length;
+  const pad  = (maxV - minV) * 0.18 || 1;
+
+  const TooltipUI = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const v = payload[0]?.value;
+    let tc = color;
+    if (dangerVal && v >= dangerVal) tc = "#ef4444";
+    else if (warnVal && v >= warnVal) tc = "#f59e0b";
     return (
-      <div className="flex justify-between items-center bg-purple-900/10 px-5 py-3 rounded border border-purple-500/10">
-        <span className="text-purple-300/70 text-xs font-bold uppercase">{label}</span>
-        <span className="text-purple-700">–</span>
+      <div className="rounded-xl px-4 py-3 shadow-2xl border text-xs" style={{ background: "rgba(8,8,20,0.97)", borderColor: color + "50" }}>
+        <div className="text-gray-500 mb-1 font-mono">{payload[0]?.payload?.day}</div>
+        <div className="text-xl font-black tabular-nums" style={{ color: tc }}>
+          {fmtNum(v, 2)}<span className="text-xs font-normal text-gray-500 ml-1">{unit}</span>
+        </div>
       </div>
     );
-
-  const v = Number(value).toFixed(2);
-  let color = "text-cyan-400";
-  let bgColor = "bg-cyan-900/20";
-
-  if (warn && danger) {
-    const n = Number(v);
-    if (n >= danger) { color = "text-pink-500"; bgColor = "bg-pink-900/20"; }
-    else if (n >= warn) { color = "text-yellow-400"; bgColor = "bg-yellow-900/20"; }
-  }
+  };
 
   return (
-    <div className="flex justify-between items-center bg-purple-900/10 px-5 py-3 rounded border border-purple-500/10">
-      <span className="text-purple-300/70 text-xs font-bold uppercase">{label}</span>
-      <div className={`${bgColor} px-3 py-1 rounded`}>
-        <span className={`font-black text-sm ${color}`}>
-          {v} <span className="opacity-70 font-normal">{unit}</span>
-        </span>
+    <>
+      <div className="flex gap-5 mb-3 text-xs text-gray-500">
+        <span>Min <span className="font-bold" style={{ color }}>{fmtNum(minV)}</span></span>
+        <span>Avg <span className="font-bold" style={{ color }}>{fmtNum(avgV)}</span></span>
+        <span>Max <span className="font-bold" style={{ color }}>{fmtNum(maxV)}</span></span>
       </div>
-    </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <AreaChart data={data} margin={{ top: 6, right: 16, left: 0, bottom: 40 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor={color} stopOpacity={0.4} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+          <XAxis dataKey="day" tickFormatter={fmtDay} tick={{ fill: "#4b5563", fontSize: 9, angle: -45, textAnchor: "end", dy: 4 }} interval={0} axisLine={false} tickLine={false} height={50} />
+          <YAxis domain={[Math.max(0, minV - pad), maxV + pad]} tick={{ fill: "#4b5563", fontSize: 10 }} tickFormatter={v => v.toFixed(0)} width={38} axisLine={false} tickLine={false} />
+          <Tooltip content={<TooltipUI />} />
+          <ReferenceLine y={avgV} stroke={color} strokeDasharray="3 3" strokeOpacity={0.35} />
+          {warnVal   && <ReferenceLine y={warnVal}   stroke="#f59e0b" strokeDasharray="4 3" label={{ value: `${warnVal}`,   fill: "#f59e0b", fontSize: 9, position: "insideTopRight" }} />}
+          {dangerVal && <ReferenceLine y={dangerVal} stroke="#ef4444" strokeDasharray="4 3" label={{ value: `${dangerVal}`, fill: "#ef4444", fontSize: 9, position: "insideTopRight" }} />}
+          <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2.5} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 5, fill: color, strokeWidth: 0 }} isAnimationActive />
+        </AreaChart>
+      </ResponsiveContainer>
+    </>
   );
 }
 
-function ChartCard({ title, children }) {
+function VoltageRangeChart({ data, color }) {
+  if (!data?.length)
+    return <div className="h-52 flex items-center justify-center text-gray-600 text-sm">No data</div>;
+
+  const TooltipUI = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-xl px-4 py-3 border text-xs" style={{ background: "rgba(8,8,20,0.97)", borderColor: color + "50" }}>
+        <div className="text-gray-500 mb-2 font-mono">{payload[0]?.payload?.day}</div>
+        {payload.map((p, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <span style={{ color: p.color }}>{p.name}:</span>
+            <span className="font-bold text-white">{fmtNum(p.value, 3)} V</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const allVals = data.flatMap(d => [Number(d.min_cell_voltage_v ?? 0), Number(d.max_cell_voltage_v ?? 0)]).filter(v => v > 0);
+  const yMin = Math.max(0, Math.min(...allVals) - 0.02);
+  const yMax = Math.max(...allVals) + 0.02;
+
   return (
-    <div className="border border-purple-500/20 rounded-lg p-5 bg-black/40 backdrop-blur-md shadow-2xl">
-      <h3 className="text-purple-300 font-bold mb-4 text-center text-xs uppercase tracking-widest">{title}</h3>
-      <div className="flex justify-center bg-black/20 rounded p-4">{children}</div>
-    </div>
+    <>
+      <div className="flex gap-4 mb-3 text-xs text-gray-500">
+        <span className="flex items-center gap-1.5"><span style={{ background: "#38bdf8", display: "inline-block", width: 10, height: 2 }} />Max V</span>
+        <span className="flex items-center gap-1.5"><span style={{ background: "#a78bfa", display: "inline-block", width: 10, height: 2 }} />Min V</span>
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <AreaChart data={data} margin={{ top: 6, right: 16, left: 0, bottom: 40 }}>
+          <defs>
+            <linearGradient id="batt_volt_max" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#38bdf8" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.01} />
+            </linearGradient>
+            <linearGradient id="batt_volt_min" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#a78bfa" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.01} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+          <XAxis dataKey="day" tickFormatter={fmtDay} tick={{ fill: "#4b5563", fontSize: 9, angle: -45, textAnchor: "end", dy: 4 }} interval={0} axisLine={false} tickLine={false} height={50} />
+          <YAxis domain={[yMin, yMax]} tick={{ fill: "#4b5563", fontSize: 10 }} tickFormatter={v => v.toFixed(2)} width={44} axisLine={false} tickLine={false} />
+          <Tooltip content={<TooltipUI />} />
+          <Area type="monotone" dataKey="max_cell_voltage_v" name="Max" stroke="#38bdf8" strokeWidth={2} fill="url(#batt_volt_max)" dot={false} activeDot={{ r: 4 }} />
+          <Area type="monotone" dataKey="min_cell_voltage_v" name="Min" stroke="#a78bfa" strokeWidth={2} fill="url(#batt_volt_min)" dot={false} activeDot={{ r: 4 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </>
   );
 }
 
-/* ========================= CHARTS (SVG) ========================= */
-function LineChart({ data, band }) {
-  if (!data || data.length === 0) return <div className="h-48 flex items-center justify-center text-purple-700 font-mono">NO DATA</div>;
-  const width = 600, height = 220, pad = 40;
-  const values = data.map(d => d.y);
-  const maxY = Math.max(...values, band?.danger || 100, 10);
-  const minY = Math.min(...values, 0);
-  const points = data.map((d, i) => `${pad + (i / (data.length - 1)) * (width - pad * 2)},${height - pad - ((d.y - minY) / (maxY - minY)) * (height - pad * 2)}`).join(" ");
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
-      <defs>
-        <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(168,85,247)" stopOpacity="0.2" /><stop offset="100%" stopColor="transparent" /></linearGradient>
-      </defs>
-      <polyline fill="url(#lineGradient)" points={`${pad},${height - pad} ${points} ${width - pad},${height - pad}`} />
-      <polyline fill="none" stroke="rgb(168,85,247)" strokeWidth="2" points={points} />
-      {data.map((d, i) => (
-        <circle key={i} cx={pad + (i / (data.length - 1)) * (width - pad * 2)} cy={height - pad - ((d.y - minY) / (maxY - minY)) * (height - pad * 2)} r="3" fill={band && d.y >= band.danger ? "rgb(236,72,153)" : "rgb(34,211,238)"} />
-      ))}
-    </svg>
-  );
-}
+function DayBarChart({ items }) {
+  if (!items?.length)
+    return <div className="h-52 flex items-center justify-center text-gray-600 text-sm">No data</div>;
 
-function BarChart({ data, band }) {
-  if (!data || data.length === 0) return <div className="h-48 flex items-center justify-center text-purple-700 font-mono">NO DATA</div>;
-  const width = 560, height = 220, pad = 50;
-  const maxY = Math.max(...data.map(d => d.y), band?.danger || 100, 10);
-  const barWidth = (width - pad * 2) / data.length - 30;
+  const COLORS = ["#34d399", "#f97316", "#fbbf24", "#a78bfa"];
+
+  const TooltipUI = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const { name, value, unit } = payload[0]?.payload ?? {};
+    return (
+      <div className="rounded-xl px-4 py-3 border text-xs" style={{ background: "rgba(8,8,20,0.97)", borderColor: "#8b5cf650" }}>
+        <div className="text-gray-400 mb-1">{name}</div>
+        <div className="text-lg font-black text-purple-300">
+          {fmtNum(value, 2)}<span className="text-xs text-gray-500 ml-1">{unit}</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
-      {data.map((d, i) => {
-        const h = (d.y / maxY) * (height - pad * 2);
-        return (
-          <g key={i}>
-            <rect x={pad + i * (barWidth + 30) + 15} y={height - pad - h} width={barWidth} height={h} rx="2" fill={band && d.y >= band.danger ? "rgb(236,72,153)" : "rgb(168,85,247)"} />
-            <text x={pad + i * (barWidth + 30) + 15 + barWidth/2} y={height - 10} textAnchor="middle" fontSize="10" fill="rgb(156,163,175)" className="uppercase">{d.x}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <ResponsiveContainer width="100%" height={240}>
+      <BarChart data={items} margin={{ top: 20, right: 16, left: 0, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+        <XAxis dataKey="name" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: "#4b5563", fontSize: 10 }} width={38} axisLine={false} tickLine={false} />
+        <Tooltip content={<TooltipUI />} cursor={{ fill: "rgba(139,92,246,0.07)" }} />
+        <Bar dataKey="value" radius={[6, 6, 0, 0]} label={{ position: "top", fill: "#9ca3af", fontSize: 11, formatter: v => fmtNum(v, 1) }}>
+          {items.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }

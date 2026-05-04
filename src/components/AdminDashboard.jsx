@@ -590,7 +590,7 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const authHeader = { Authorization: `Bearer ${token}` };
-      const summaryRes = await apiClient.get("/api/vehicle-master/admin-summary", { headers: authHeader });
+      const summaryRes = await axios.get(`${API_BASE_URL}/api/vehicle-master/admin-summary`, { headers: authHeader, timeout: 30000 });
       let baseRows = summaryRes.data.map((row) => ({
         vehicle_master_id: row.vehicle_master_id,
         vehicle_type: row.vehicle_type?.trim() || "—",
@@ -605,7 +605,7 @@ export default function AdminDashboard() {
 
       if (analyticsMode !== "all") {
         const params = analyticsMode === "today" ? "mode=today" : `from=${fromDate}&to=${toDate}`;
-        const batchRes = await apiClient.get(`/api/vehicles/analytics/batch?${params}`, { headers: authHeader });
+        const batchRes = await axios.get(`${API_BASE_URL}/api/vehicles/analytics/batch?${params}`, { headers: authHeader, timeout: 30000 });
         if (batchRes.data) {
           baseRows = baseRows.map((row) => ({ ...row, ...(batchRes.data[row.vehicle_master_id] || {}) }));
         }

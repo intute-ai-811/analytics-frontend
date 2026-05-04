@@ -523,15 +523,25 @@ export default function CustomerDashboard() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                     {paginatedRows.map((row) => (
-                        <tr key={row.id} className="hover:bg-purple-500/5 transition-all">
+                        <tr
+                            key={row.id}
+                            className="hover:bg-purple-500/5 transition-all cursor-pointer"
+                            onClick={() => {
+                                localStorage.setItem("selectedVehicle", JSON.stringify(row));
+                                navigate(`/vehicle/${row.id}`);
+                            }}
+                        >
                             <td className="px-6 py-6 font-mono text-xs text-purple-400">{row.id.slice(-4)}</td>
                             <td className="px-6 py-6 font-bold">{row.vehicleType}</td>
                             <td className="px-6 py-6 font-mono">{row.vehicleNo}</td>
                             <td className="px-6 py-6 font-mono text-gray-400">{row.avgKwh}</td>
                             <td className="px-6 py-6"><StatusPill status={row.status} /></td>
                             <td className="px-6 py-6">
-                                <button 
-                                    onClick={() => navigate(`/vehicle/${row.id}/track`)}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/vehicle/${row.id}/track`);
+                                    }}
                                     className="flex items-center gap-2 text-[10px] font-black uppercase bg-purple-600 px-4 py-2 rounded-lg hover:bg-pink-600 transition-all"
                                 >
                                     <MapPin size={12} /> Track

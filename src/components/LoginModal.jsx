@@ -244,6 +244,8 @@ import React, { useState } from "react";
 import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { DEMO_EMAIL, DEMO_PASSWORD, DEMO_TOKEN } from "../demo/demoData";
+import { installDemoInterceptor } from "../demo/interceptor";
 
 // Note: Ensure this path matches your file structure
 import IntuteLogo from "../assets/Intute.png";
@@ -287,6 +289,28 @@ export default function LoginModal({ onClose, onAuth }) {
 
     setLoading(true);
     setError("");
+
+    // ── Demo mode bypass ──────────────────────────────────────────────────────
+    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+      const demoUser = { name: "Demo User", email: DEMO_EMAIL, role: "admin" };
+      const authPayload = { token: DEMO_TOKEN, ...demoUser };
+      localStorage.setItem("token", DEMO_TOKEN);
+      localStorage.setItem("user", JSON.stringify(authPayload));
+      localStorage.setItem("loginPassword", DEMO_PASSWORD);
+      installDemoInterceptor();
+      try {
+        window.dispatchEvent(new CustomEvent("auth:login", { detail: { token: DEMO_TOKEN, user: demoUser } }));
+      } catch (e) { /* ignore */ }
+      const target = "/admin/splash";
+      navigate(target, { replace: true, state: { fromLogin: true, ts: Date.now() } });
+      setTimeout(() => {
+        if (window.location.pathname !== target) window.location.replace(target);
+      }, 50);
+      setLoading(false);
+      onClose?.();
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     try {
       const { data } = await axios.post(
