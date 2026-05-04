@@ -20,7 +20,7 @@ export const isDemoMode = () => {
 export const DEMO_VEHICLES = [
   {
     vehicle_master_id: "demo-9001",
-    vehicle_type: "Tata Electric Truck Pro",
+    vehicle_type: "Intute Loader",
     vehicle_no: "DL01AB1234",
     capacity: 7.5,
     customer: "IntuteAI Demo Client",
@@ -31,7 +31,7 @@ export const DEMO_VEHICLES = [
   },
   {
     vehicle_master_id: "demo-9002",
-    vehicle_type: "Tata Electric Loader",
+    vehicle_type: "Intute Excavtor",
     vehicle_no: "MH02CD5678",
     capacity: 3.5,
     customer: "IntuteAI Demo Client",
@@ -42,7 +42,7 @@ export const DEMO_VEHICLES = [
   },
   {
     vehicle_master_id: "demo-9003",
-    vehicle_type: "BYD Electric Truck",
+    vehicle_type: "Intute Forklift",
     vehicle_no: "UP03EF9012",
     capacity: 5.0,
     customer: "IntuteAI Demo Client",
