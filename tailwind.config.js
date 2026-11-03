@@ -1,3 +1,5 @@
+import colors from 'tailwindcss/colors';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -6,6 +8,12 @@ export default {
   ],
   theme: {
     extend: {
+      // Telemetry theme: same design as ERDE, different palette.
+      // `brand` takes the place of ERDE's orange, `accent` the red end of its gradients.
+      colors: {
+        brand: colors.sky,
+        accent: colors.violet,
+      },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',
       },

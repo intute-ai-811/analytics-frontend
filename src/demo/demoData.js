@@ -5,6 +5,9 @@ export const DEMO_EMAIL = "demo@intuteai.in";
 export const DEMO_PASSWORD = "password@demo";
 export const DEMO_TOKEN = "demo-token-intuteai";
 
+// Shape returned by /api/auth/me (and dispatched on "auth:login") for the demo user.
+export const DEMO_USER = { name: "Demo User", email: DEMO_EMAIL, role: "admin" };
+
 export const isDemoMode = () => {
   try {
     return JSON.parse(localStorage.getItem("user") || "null")?.email === DEMO_EMAIL;
@@ -31,7 +34,7 @@ export const DEMO_VEHICLES = [
   },
   {
     vehicle_master_id: "demo-9002",
-    vehicle_type: "Intute Excavtor",
+    vehicle_type: "Intute Excavator",
     vehicle_no: "MH02CD5678",
     capacity: 3.5,
     customer: "IntuteAI Demo Client",
@@ -52,6 +55,69 @@ export const DEMO_VEHICLES = [
     avg_kwh: 5.01,
   },
 ];
+
+// last_seen drives the "live" status on the dashboards and fleet map
+// (LIVE_THRESHOLD_MS = 15 s) — online vehicles are always "just seen".
+const DEMO_LAST_SEEN_AGO_MS = {
+  "demo-9001": 0,
+  "demo-9002": 2 * 60_000,
+  "demo-9003": 3 * 3_600_000,
+};
+
+export function demoLastSeen(vehicleId) {
+  return new Date(Date.now() - (DEMO_LAST_SEEN_AGO_MS[vehicleId] ?? 3_600_000)).toISOString();
+}
+
+// ── /api/vehicle-master/admin-summary ── (adds a fresh last_seen per call)
+export function makeDemoAdminSummary() {
+  return DEMO_VEHICLES.map((v) => ({ ...v, last_seen: demoLastSeen(v.vehicle_master_id) }));
+}
+
+// ── /api/vehicle-master/my ── (CustomerDashboard shape)
+export function makeDemoMyVehicles() {
+  return DEMO_VEHICLES.map((v) => ({
+    vehicle_master_id: v.vehicle_master_id,
+    vehicle_make: "Intute",
+    vehicle_model: v.vehicle_type.replace(/^Intute\s*/, ""),
+    capacity: v.capacity,
+    vehicle_reg_no: v.vehicle_no,
+    total_hours: v.total_hours,
+    total_kwh: v.total_kwh,
+    avg_kwh: v.avg_kwh,
+    status: v.status,
+  }));
+}
+
+// ── /api/vehicle-master/admin-summary/stream  &  /api/vehicle-master/my/stream ──
+// Per-vehicle status + all-time totals; online vehicle's counters creep up.
+export function makeDemoSummaryUpdate(vehicleId, tick = 0) {
+  const v = DEMO_VEHICLES.find((x) => x.vehicle_master_id === vehicleId);
+  if (!v) return null;
+  const running = v.status === "online";
+  const total_hours = +(v.total_hours + (running ? tick * 0.001 : 0)).toFixed(2);
+  const total_kwh = +(v.total_kwh + (running ? tick * 0.006 : 0)).toFixed(2);
+  return {
+    vehicle_master_id: vehicleId,
+    status: v.status,
+    total_hours,
+    total_kwh,
+    avg_kwh: +(total_kwh / total_hours).toFixed(2),
+    last_seen: demoLastSeen(vehicleId),
+  };
+}
+
+// ── /api/vehicles/:id ── (VehicleLiveTrack identity card)
+export function makeDemoVehicleInfo(vehicleId) {
+  const v = DEMO_VEHICLES.find((x) => x.vehicle_master_id === vehicleId);
+  if (!v) return null;
+  return {
+    vehicle_master_id: vehicleId,
+    vehicle_reg_no: v.vehicle_no,
+    make: "Intute",
+    model: v.vehicle_type.replace(/^Intute\s*/, ""),
+    customer: v.customer,
+  };
+}
 
 // ── /api/vehicles/analytics/batch ────────────────────────────────────────────
 // Keyed by vehicle_master_id — merged into rows by AdminDashboard for "today" mode.
@@ -154,7 +220,7 @@ export function makeLiveSnapshot(vehicleId, tick = 0) {
 
 // ── /api/vehicles/:id/timeseries?minutes=5 ───────────────────────────────────
 // 30 historical points (10 s apart) for LiveCharts seed.
-export function makeDemoTimeseries(vehicleId) {
+export function makeDemoTimeseries() {
   const now = Date.now();
   return Array.from({ length: 30 }, (_, i) => {
     const t   = now - (29 - i) * 10_000;
@@ -172,7 +238,7 @@ export function makeDemoTimeseries(vehicleId) {
 }
 
 // ── /api/motor/analytics/:id ─────────────────────────────────────────────────
-export function makeDemoMotorAnalytics(vehicleId) {
+export function makeDemoMotorAnalytics() {
   return Array.from({ length: 30 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (29 - i));
@@ -201,7 +267,7 @@ export function makeDemoMotorDay(vehicleId, date) {
 }
 
 // ── /api/battery/analytics/:id ───────────────────────────────────────────────
-export function makeDemoBatteryAnalytics(vehicleId) {
+export function makeDemoBatteryAnalytics() {
   return Array.from({ length: 30 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (29 - i));
@@ -233,4 +299,77 @@ export function makeDemoBatteryDay(vehicleId, date) {
 export const DEMO_LOCATION = {
   "demo-9001": { lat: 18.5204, lon: 73.8567 },
   "demo-9002": { lat: 18.5304, lon: 73.8667 },
+  "demo-9003": { lat: 18.5124, lon: 73.8712 },
 };
+
+// Single GPS fix — /api/vehicles/:id/location/stream payload. Only the
+// online vehicle drifts in a slow circle; the others sit still.
+export function makeDemoLocation(vehicleId, tick = 0) {
+  const base = DEMO_LOCATION[vehicleId] ?? DEMO_LOCATION["demo-9001"];
+  const moving = vehicleId === "demo-9001";
+  const angle = tick * 0.15;
+  return {
+    vehicle_master_id: vehicleId,
+    lat: moving ? base.lat + Math.sin(angle) * 0.0003 : base.lat,
+    lon: moving ? base.lon + Math.cos(angle) * 0.0003 : base.lon,
+    heading_deg: moving ? (((90 - (angle * 180) / Math.PI) % 360) + 360) % 360 : 45,
+    speed_mps: moving ? 2.4 + Math.sin(tick * 0.3) * 0.6 : 0,
+    accuracy_m: moving ? 6 : 12,
+    recorded_at: new Date().toISOString(),
+  };
+}
+
+// ── /api/vehicles/locations ── (FleetMap snapshot, one row per vehicle)
+export function makeDemoFleetLocations(tick = 0) {
+  return DEMO_VEHICLES.map((v) => {
+    const live = makeLiveSnapshot(v.vehicle_master_id, tick);
+    return {
+      ...makeDemoLocation(v.vehicle_master_id, tick),
+      vehicle_no: v.vehicle_no,
+      vehicle_type: v.vehicle_type,
+      customer: v.customer,
+      soc_percent: live.soc_percent,
+      total_hours: live.total_hours,
+      last_seen: demoLastSeen(v.vehicle_master_id),
+    };
+  });
+}
+
+// ── /api/vehicles/:id/activity?date=YYYY-MM-DD ── (LiveCharts "Daily Activity")
+// 5-minute buckets; hrs_start/hrs_end are odometer seconds, so a positive
+// delta marks the bucket as "running".
+export function makeDemoActivity(vehicleId, date) {
+  const v = DEMO_VEHICLES.find((x) => x.vehicle_master_id === vehicleId);
+  if (!v || v.status === "offline") return { buckets: [], summary: { running_hours: 0 } };
+
+  const isV1 = vehicleId === "demo-9001";
+  const dayStart = new Date(`${date}T00:00:00+05:30`).getTime();
+  const end = Math.min(dayStart + 86_400_000, Date.now());
+  // Shift plan (IST hours): charge overnight, run morning + afternoon shifts.
+  const stateAt = (h) => {
+    if (h < 6) return "Charging";
+    if ((h >= 8 && h < 12.5) || (h >= 13.5 && h < (isV1 ? 18 : 16))) return "Running";
+    if (h >= 6 && h < 20) return "Discharging";
+    return null;
+  };
+
+  let odo = v.total_hours * 3600;
+  let runningSecs = 0;
+  const buckets = [];
+  for (let t = dayStart; t < end; t += 5 * 60_000) {
+    const h = (t - dayStart) / 3_600_000;
+    const st = stateAt(h);
+    if (!st) continue;
+    const delta = st === "Running" ? 240 + Math.round(Math.sin(t / 1e6) * 50) : 0;
+    buckets.push({
+      bucket: new Date(t).toISOString(),
+      row_count: 60,
+      battery_status: st === "Running" ? "Discharging" : st,
+      hrs_start: odo,
+      hrs_end: odo + delta,
+    });
+    odo += delta;
+    runningSecs += delta;
+  }
+  return { buckets, summary: { running_hours: runningSecs / 3600 } };
+}
